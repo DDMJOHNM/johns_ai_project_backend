@@ -26,19 +26,23 @@ func main() {
 		log.Printf("Connecting to DynamoDB at %s (region: %s)...", endpoint, region)
 	} else {
 		log.Printf("Connecting to AWS DynamoDB (region: %s)...", region)
+		log.Printf("Using credentials: accessKey=%s, secretKey=%s", maskString(accessKey), maskString(secretKey))
 	}
 
 	// Load AWS config
 	ctx := context.Background()
-	ctx2 := context.Background()
 	
 	configOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
 	}
 	
-	// Use static credentials if provided, otherwise use default credential chain
+	// For production (real AWS), always use explicit credentials from environment
+	// For local, use provided credentials or defaults
 	if accessKey != "" && secretKey != "" {
 		configOpts = append(configOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
+	} else if endpoint == "" {
+		// Real AWS without credentials - this will fail, so error early
+		log.Fatalf("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set for AWS DynamoDB access")
 	}
 	
 	// Use custom endpoint if provided (for local DynamoDB)
@@ -56,7 +60,7 @@ func main() {
 		)))
 	}
 	
-	cfg, err := config.LoadDefaultConfig(ctx2, configOpts...)
+	cfg, err := config.LoadDefaultConfig(ctx, configOpts...)
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
@@ -310,4 +314,11 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func maskString(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
 }
