@@ -52,14 +52,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
-      - name: Create DynamoDB tables (if not exists)
+      - name: Validate CloudFormation template
+        run: aws cloudformation validate-template --template-body file://infra/dynamodb-table.yml
+
+      - name: Deploy DynamoDB CloudFormation
+        run: |
+          aws cloudformation deploy \
+            --stack-name johns-ai-dynamodb \
+            --template-file infra/dynamodb-table.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Wait for DynamoDB table to exist
+        run: aws dynamodb wait table-exists --table-name clients --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Build seeder
+        run: |
+          go build -o bin/seed ./cmd/seed-db
+
+      - name: Run seeder
         env:
           AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          # Build create-db binary
-          go build -o bin/create-db ./cmd/create-db
-          # Run table creation (idempotent - will skip if tables exist)
-          ./bin/create-db || echo "Tables may already exist, continuing..."
+          ./bin/seed || echo "Seeder failed or already seeded; continuing..."
 
       - name: Build Docker image
         if: env.DOCKER_REGISTRY != ''
