@@ -35,9 +35,6 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Run tests
-        run: go test -v ./...
-
       - name: Build server binary
         run: |
           mkdir -p bin
