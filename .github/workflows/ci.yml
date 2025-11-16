@@ -41,7 +41,7 @@ jobs:
     needs: build
     services:
       dynamodb:
-        image: amazon/dynamodb-local:latest
+        image: amazon/dynamodb-local:1.23.0
         ports: ['8000:8000']
 
     env:
@@ -51,19 +51,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Wait for DynamoDB Local to be available
+      - name: Dump Docker containers (diagnostics)
+        run: |
+          echo "Listing all Docker containers (short):" || true
+          docker ps -a --format "{{.ID}} {{.Image}} {{.Status}}" || true
+          echo
+          echo "Looking for dynamodb-local containers (by image)" || true
+          docker ps -a --filter ancestor=amazon/dynamodb-local:1.23.0 --format '{{.ID}} {{.Image}} {{.Status}}' || true
+          CID=$(docker ps -a --filter ancestor=amazon/dynamodb-local:1.23.0 --format '{{.ID}}' | head -n1 || true)
+          if [ -n "$CID" ]; then
+            echo "Found container $CID; printing last 200 lines of logs:";
+            docker logs --tail 200 "$CID" || true
+          else
+            echo "No dynamodb-local container found yet.";
+          fi
+
+      - name: Wait for DynamoDB Local to be available (longer timeout + diagnostics)
         run: |
           set -e
           echo "Waiting for DynamoDB Local at http://localhost:8000..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -sSf http://localhost:8000/ >/dev/null 2>&1; then
               echo "DynamoDB Local is available"
               exit 0
             fi
-            echo "  DynamoDB not ready yet ($i/30), sleeping 2s..."
-            sleep 2
+            echo "  DynamoDB not ready yet ($i/60), sleeping 5s..."
+            sleep 5
           done
           echo "Timed out waiting for DynamoDB Local" >&2
+          echo "--- Diagnostics after timeout ---"
+          docker ps -a --format "{{.ID}} {{.Image}} {{.Status}}" || true
+          CID=$(docker ps -a --filter ancestor=amazon/dynamodb-local:1.23.0 --format '{{.ID}}' | head -n1 || true)
+          if [ -n "$CID" ]; then
+            echo "Container $CID logs:";
+            docker logs --tail 500 "$CID" || true
+          else
+            echo "No dynamodb-local container found.";
+          fi
           exit 1
 
       - name: Set up Go
