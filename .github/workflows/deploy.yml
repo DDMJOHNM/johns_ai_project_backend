@@ -72,7 +72,10 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          ./bin/seed || echo "Seeder failed or already seeded; continuing..."
+          echo "AWS_REGION: $AWS_REGION"
+          echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
+          echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+          ./bin/seed
 
       - name: Build Docker image
         if: env.DOCKER_REGISTRY != ''
