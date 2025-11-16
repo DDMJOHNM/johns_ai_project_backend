@@ -48,30 +48,13 @@ jobs:
           --health-interval=5s
           --health-timeout=2s
           --health-retries=6
-    services:
-      dynamodb:
-        image: amazon/dynamodb-local:latest
-        ports: ['8000:8000']
-        options: >-
-          --health-cmd='curl -sS http://localhost:8000/ || exit 1'
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=6
 
     env:
       DYNAMODB_ENDPOINT: http://localhost:8000
-      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (optional/dummy)
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -82,5 +65,5 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        # Ensure your tests use DYNAMODB_ENDPOINT from env
+        # Tests use DYNAMODB_ENDPOINT from env (no AWS credentials needed for local DynamoDB)
         run: go test ./... -v
