@@ -16,19 +16,34 @@ import (
 
 func main() {
 	// Get configuration from environment
-	endpoint := getEnv("DYNAMODB_ENDPOINT", "http://localhost:8000")
+	endpoint := getEnv("DYNAMODB_ENDPOINT", "")
 	region := getEnv("AWS_REGION", "us-east-1")
-	accessKey := getEnv("AWS_ACCESS_KEY_ID", "test")
-	secretKey := getEnv("AWS_SECRET_ACCESS_KEY", "test")
+	accessKey := getEnv("AWS_ACCESS_KEY_ID", "")
+	secretKey := getEnv("AWS_SECRET_ACCESS_KEY", "")
 
-	log.Printf("Connecting to DynamoDB at %s (region: %s)...", endpoint, region)
+	// Determine connection target
+	if endpoint != "" {
+		log.Printf("Connecting to DynamoDB at %s (region: %s)...", endpoint, region)
+	} else {
+		log.Printf("Connecting to AWS DynamoDB (region: %s)...", region)
+	}
 
-	// Load AWS config with custom endpoint for local DynamoDB
+	// Load AWS config
 	ctx := context.Background()
-	cfg, err := config.LoadDefaultConfig(ctx,
+	ctx2 := context.Background()
+	
+	configOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+	}
+	
+	// Use static credentials if provided, otherwise use default credential chain
+	if accessKey != "" && secretKey != "" {
+		configOpts = append(configOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
+	}
+	
+	// Use custom endpoint if provided (for local DynamoDB)
+	if endpoint != "" {
+		configOpts = append(configOpts, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 				if service == dynamodb.ServiceID {
 					return aws.Endpoint{
@@ -38,8 +53,10 @@ func main() {
 				}
 				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 			},
-		)),
-	)
+		)))
+	}
+	
+	cfg, err := config.LoadDefaultConfig(ctx2, configOpts...)
 	if err != nil {
 		log.Fatalf("Failed to load AWS config: %v", err)
 	}
