@@ -6,8 +6,8 @@
 *.dylib
 build/
 bin/
-seed-db
-create-db
+/seed-db
+/create-db
 
 # Test binary
 *.test
