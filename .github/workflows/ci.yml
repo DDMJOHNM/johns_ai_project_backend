@@ -43,11 +43,6 @@ jobs:
       dynamodb:
         image: amazon/dynamodb-local:latest
         ports: ['8000:8000']
-        options: >-
-          --health-cmd=CMD-SHELL,curl -f http://localhost:8000/ || exit 1
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=6
 
     env:
       DYNAMODB_ENDPOINT: http://localhost:8000
@@ -55,6 +50,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Wait for DynamoDB Local to be available
+        run: |
+          set -e
+          echo "Waiting for DynamoDB Local at http://localhost:8000..."
+          for i in $(seq 1 30); do
+            if curl -sSf http://localhost:8000/ >/dev/null 2>&1; then
+              echo "DynamoDB Local is available"
+              exit 0
+            fi
+            echo "  DynamoDB not ready yet ($i/30), sleeping 2s..."
+            sleep 2
+          done
+          echo "Timed out waiting for DynamoDB Local" >&2
+          exit 1
 
       - name: Set up Go
         uses: actions/setup-go@v4
