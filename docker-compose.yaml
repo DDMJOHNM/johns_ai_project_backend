@@ -1,0 +1,22 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: john_ai_dynamodb
+    ports:
+      - "${DYNAMODB_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    # Using -inMemory mode to avoid SQLite file permission issues
+    # Data will be lost when container stops, but this is fine for local development
+    # For persistent data, use: -dbPath /home/dynamodblocal/data
+    # and ensure proper volume permissions
+    # Healthcheck removed - DynamoDB Local doesn't include curl/nc
+    # Container will be ready when it starts listening on port 8000
+
+volumes:
+  dynamodb_data:
+

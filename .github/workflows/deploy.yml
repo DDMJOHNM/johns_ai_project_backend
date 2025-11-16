@@ -1,0 +1,111 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build server binary
+        run: |
+          mkdir -p bin
+          go build -ldflags="-s -w" -o bin/server ./cmd/server
+          chmod +x bin/server
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Create DynamoDB tables (if not exists)
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        run: |
+          # Build create-db binary
+          go build -o bin/create-db ./cmd/create-db
+          # Run table creation (idempotent - will skip if tables exist)
+          ./bin/create-db || echo "Tables may already exist, continuing..."
+
+      - name: Build Docker image
+        if: env.DOCKER_REGISTRY != ''
+        run: |
+          echo "Docker deployment not configured. Skipping..."
+        # Uncomment and configure if using Docker/ECS deployment:
+        # docker build -t ${{ env.DOCKER_REGISTRY }}/john-ai-project:${{ github.sha }} .
+        # docker push ${{ env.DOCKER_REGISTRY }}/john-ai-project:${{ github.sha }}
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-binary
+          path: bin/server
+          retention-days: 30
+
+      - name: Deploy to EC2 (if configured)
+        if: env.EC2_HOST != ''
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "EC2 deployment not configured. Skipping..."
+          # Uncomment and configure if deploying to EC2:
+          # echo "$EC2_SSH_KEY" > /tmp/deploy_key.pem
+          # chmod 600 /tmp/deploy_key.pem
+          # scp -i /tmp/deploy_key.pem bin/server $EC2_USER@$EC2_HOST:/opt/john-ai-project/
+          # ssh -i /tmp/deploy_key.pem $EC2_USER@$EC2_HOST 'sudo systemctl restart john-ai-project || echo "Service not configured"'
+
+      - name: Deploy to Lambda (if configured)
+        if: env.DEPLOY_TO_LAMBDA == 'true'
+        run: |
+          echo "Lambda deployment not configured. Skipping..."
+          # Uncomment and configure if deploying to AWS Lambda:
+          # zip -j bin/server.zip bin/server
+          # aws lambda update-function-code \
+          #   --function-name john-ai-project \
+          #   --zip-file fileb://bin/server.zip
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Build completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- Binary: bin/server" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+
+
