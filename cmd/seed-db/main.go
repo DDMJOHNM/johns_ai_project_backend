@@ -75,9 +75,9 @@ func main() {
 	}
 
 	// Seed users
-	if err := seedUsers(ctx, client); err != nil {
-		log.Fatalf("Failed to seed users: %v", err)
-	}
+	// if err := seedUsers(ctx, client); err != nil {
+	// 	log.Fatalf("Failed to seed users: %v", err)
+	// }
 
 	log.Println("Database seeding completed successfully!")
 }
