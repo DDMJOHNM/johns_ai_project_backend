@@ -28,11 +28,10 @@ Section 4: Application Layer
   
 Section 5: Deployment 
 1. Set Up the Project environments local development amd deployment to production via github actions     
-
+2. Add Amazon api gateway via a cloud formation stack to deploy via github actions  
+3. Also add cloud watch logging for the endpoint 
 
 //TODO:
-//CLOUD FORMATION
-//AWS Gateway 
 Section 6: Set up tests in go 
 Section 7: Create Client
 Section 8: Static React Site deployable to bucket and aws gateway set up
