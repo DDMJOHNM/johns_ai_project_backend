@@ -31,6 +31,8 @@ Section 5: Deployment
 
 
 //TODO:
+//CLOUD FORMATION
+//AWS Gateway 
 Section 6: Set up tests in go 
 Section 7: Create Client
 Section 8: Static React Site deployable to bucket and aws gateway set up

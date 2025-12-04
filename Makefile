@@ -1,4 +1,4 @@
-.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server
+.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway
 
 # Variables with defaults (can be overridden by .env file or environment)
 # The .env file is automatically loaded by docker-compose and Go programs
@@ -39,6 +39,12 @@ help:
 	@echo "  make setup           - Full setup (docker-up + test-db)"
 	@echo "  make clean           - Clean build artifacts and binaries"
 	@echo ""
+	@echo "API Gateway Commands:"
+	@echo "  make deploy-api-gateway - Deploy API Gateway (requires BACKEND_URL)"
+	@echo "  make get-api-url        - Get API Gateway endpoint URL"
+	@echo "  make test-api-gateway   - Test API Gateway endpoints"
+	@echo "  make delete-api-gateway - Delete API Gateway stack"
+	@echo ""
 	@echo "Environment Variables:"
 	@echo "  DYNAMODB_ENDPOINT    - DynamoDB endpoint (default: http://localhost:8000)"
 	@echo "  AWS_REGION           - AWS region (default: us-east-1)"
@@ -67,14 +73,14 @@ docker-status:
 # Database setup
 setup-db:
 	@echo "Creating DynamoDB tables..."
-	@$(ENV_LOAD) \
+	@if [ -f .env ]; then export $$(grep -v '^#' .env | xargs); fi; \
 	 DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)} \
 	 AWS_REGION=$${AWS_REGION:-$(AWS_REGION)} \
 	 go run cmd/create-db/main.go
 
 seed-db:
 	@echo "Seeding DynamoDB with test data..."
-	@$(ENV_LOAD) \
+	@if [ -f .env ]; then export $$(grep -v '^#' .env | xargs); fi; \
 	 DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)} \
 	 AWS_REGION=$${AWS_REGION:-$(AWS_REGION)} \
 	 go run cmd/seed-db/main.go
@@ -154,5 +160,53 @@ setup: docker-up test-db
 	@echo "Next steps:"
 	@echo "  - Run 'make verify' to verify the setup"
 	@echo "  - Check logs with 'make docker-logs'"
+
+# API Gateway commands
+deploy-api-gateway:
+	@echo "Deploying API Gateway..."
+	@if [ -z "$(BACKEND_URL)" ]; then \
+		echo "Error: BACKEND_URL must be set (e.g., http://your-alb-url:8080)"; \
+		echo "Usage: make deploy-api-gateway BACKEND_URL=http://your-backend-url:8080"; \
+		exit 1; \
+	fi
+	@aws cloudformation deploy \
+		--stack-name johns-ai-api-gateway \
+		--template-file infra/api-gateway.yml \
+		--parameter-overrides \
+			BackendUrl=$(BACKEND_URL) \
+			StageName=$${STAGE_NAME:-prod} \
+			Environment=$${ENVIRONMENT:-production} \
+		--capabilities CAPABILITY_IAM \
+		--region $(AWS_REGION)
+
+get-api-url:
+	@aws cloudformation describe-stacks \
+		--stack-name johns-ai-api-gateway \
+		--query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+		--output text \
+		--region $(AWS_REGION) 2>/dev/null || echo "Stack not found. Deploy with: make deploy-api-gateway BACKEND_URL=..."
+
+delete-api-gateway:
+	@echo "Deleting API Gateway stack..."
+	@aws cloudformation delete-stack \
+		--stack-name johns-ai-api-gateway \
+		--region $(AWS_REGION)
+	@echo "Stack deletion initiated. Check status with: aws cloudformation describe-stacks --stack-name johns-ai-api-gateway"
+
+test-api-gateway:
+	@echo "Testing API Gateway endpoints..."
+	@API_URL=$$(make get-api-url 2>/dev/null | grep -v "Stack not found"); \
+	if [ -z "$$API_URL" ] || [ "$$API_URL" = "Stack not found. Deploy with: make deploy-api-gateway BACKEND_URL=..." ]; then \
+		echo "Error: API Gateway not deployed. Run: make deploy-api-gateway BACKEND_URL=..."; \
+		exit 1; \
+	fi; \
+	echo "Testing against: $$API_URL"; \
+	echo ""; \
+	echo "1. Health Check:"; \
+	curl -s $$API_URL/health | jq '.' || curl -s $$API_URL/health; \
+	echo ""; \
+	echo "2. Get All Clients:"; \
+	curl -s $$API_URL/api/clients | jq '.' || curl -s $$API_URL/api/clients; \
+	echo ""
 
 

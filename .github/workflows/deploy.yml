@@ -62,6 +62,44 @@ jobs:
       - name: Wait for DynamoDB table to exist
         run: aws dynamodb wait table-exists --table-name clients --region ${{ secrets.AWS_REGION || 'us-east-1' }}
 
+      - name: Validate API Gateway CloudFormation template
+        run: aws cloudformation validate-template --template-body file://infra/api-gateway.yml
+
+      - name: Deploy API Gateway
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL || 'http://localhost:8080' }}
+          STAGE_NAME: prod
+          ENVIRONMENT: production
+        run: |
+          if [ -z "$BACKEND_URL" ] || [ "$BACKEND_URL" = "http://localhost:8080" ]; then
+            echo "⚠️  BACKEND_URL not set. Skipping API Gateway deployment."
+            echo "Set BACKEND_URL secret in GitHub to deploy API Gateway."
+            exit 0
+          fi
+          aws cloudformation deploy \
+            --stack-name johns-ai-api-gateway \
+            --template-file infra/api-gateway.yml \
+            --parameter-overrides \
+              BackendUrl=$BACKEND_URL \
+              StageName=$STAGE_NAME \
+              Environment=$ENVIRONMENT \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Get API Gateway URL
+        if: env.BACKEND_URL != '' && env.BACKEND_URL != 'http://localhost:8080'
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name johns-ai-api-gateway \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }})
+          echo "API Gateway URL: $API_URL"
+          echo "API_URL=$API_URL" >> $GITHUB_ENV
+          echo "## 🚀 API Gateway Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Endpoint:** $API_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Check:** $API_URL/health" >> $GITHUB_STEP_SUMMARY
+
       - name: Build seeder
         run: |
           go build -o bin/seed ./cmd/seed-db
@@ -123,5 +161,8 @@ jobs:
           echo "- Binary: bin/server" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ env.API_URL }}" ]; then
+            echo "- API Gateway: ${{ env.API_URL }}" >> $GITHUB_STEP_SUMMARY
+          fi
 
 

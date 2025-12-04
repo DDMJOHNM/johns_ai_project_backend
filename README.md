@@ -2,11 +2,28 @@
 
 A system to manage clients receiving counselling for mental health.
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Available Commands](#available-commands)
+- [Environment Setup](#environment-setup)
+- [Database Configuration](#database-configuration)
+- [Database Schema](#database-schema)
+- [API Server](#api-server)
+- [API Endpoints](#api-endpoints)
+- [Testing the API](#testing-the-api)
+- [API Gateway](#api-gateway)
+- [CI/CD with GitHub Actions](#cicd-with-github-actions)
+- [AWS Deployment](#aws-deployment)
+- [Troubleshooting](#troubleshooting)
+
 ## Prerequisites
 
 - Go 1.21 or later
 - Docker and Docker Compose
 - Make
+- AWS CLI (for deployment)
 
 ## Quick Start
 
@@ -30,6 +47,13 @@ Or run everything at once:
 make setup
 ```
 
+4. **Start the API server:**
+   ```bash
+   make run-server
+   ```
+
+The server will be available at `http://localhost:8080`.
+
 ## Available Commands
 
 ### Docker Commands
@@ -39,19 +63,107 @@ make setup
 - `make docker-status` - Check DynamoDB container status
 
 ### Database Commands
-- `make setup-db` - Create DynamoDB tables
+- `make setup-db` - Create DynamoDB tables (clients and users)
 - `make seed-db` - Seed DynamoDB with test data
 - `make test-db` - Run setup-db and seed-db
-- `make verify` - Verify tables exist
+- `make verify` - Verify tables exist and have data
 
-### Server Commands
-- `make run-server` - Start the API server (default port 8080)
-- `make build-server` - Build the API server binary
+### Build Commands
+- `make build` - Build all Go binaries
+- `make build-create-db` - Build create-db binary
+- `make build-seed-db` - Build seed-db binary
+- `make build-example` - Build example client service binary
+- `make run-example` - Run example client service
+- `make build-server` - Build API server binary
+- `make run-server` - Run API server (default port 8080)
 
-### Other Commands
-- `make setup` - Full setup (docker + database)
-- `make build` - Build all binaries
-- `make clean` - Clean build artifacts
+### API Gateway Commands
+- `make deploy-api-gateway` - Deploy API Gateway (requires BACKEND_URL)
+- `make get-api-url` - Get API Gateway endpoint URL
+- `make test-api-gateway` - Test API Gateway endpoints
+- `make delete-api-gateway` - Delete API Gateway stack
+
+### Setup & Cleanup
+- `make setup` - Full setup (docker-up + test-db)
+- `make clean` - Clean build artifacts and binaries
+
+### Environment Variables
+- `DYNAMODB_ENDPOINT` - DynamoDB endpoint (default: http://localhost:8000)
+- `AWS_REGION` - AWS region (default: us-east-1)
+- `HTTP_PORT` - HTTP server port (default: 8080)
+- `BACKEND_URL` - Backend server URL for API Gateway deployment
+
+## Environment Setup
+
+### Local Development Environment
+
+#### Initial Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd johns_ai_project_backend
+   ```
+
+2. **Copy environment template:**
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Configure local environment:**
+   Edit `.env` file with your local settings:
+   ```bash
+   DYNAMODB_ENDPOINT=http://localhost:8000
+   AWS_REGION=us-east-1
+   HTTP_PORT=8080
+   ```
+
+4. **Start the development environment:**
+   ```bash
+   make setup
+   ```
+   This will:
+   - Start DynamoDB Local in Docker
+   - Create database tables
+   - Seed the database with test data
+
+5. **Start the API server:**
+   ```bash
+   make run-server
+   ```
+
+The server will be available at `http://localhost:8080`.
+
+#### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `DYNAMODB_ENDPOINT` | DynamoDB endpoint URL | `http://localhost:8000` | No (for local) |
+| `AWS_REGION` | AWS region | `us-east-1` | Yes |
+| `HTTP_PORT` | HTTP server port | `8080` | No |
+| `AWS_ACCESS_KEY_ID` | AWS access key (production) | - | Yes (production) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key (production) | - | Yes (production) |
+
+### Production Environment
+
+#### AWS Setup
+
+1. **Create DynamoDB Tables:**
+   - Use AWS Console or the `create-db` script
+   - Ensure tables match the schema defined in the code
+
+2. **Configure IAM Permissions:**
+   - Create IAM user/role with DynamoDB permissions
+   - Attach policies: `AmazonDynamoDBFullAccess` (or custom policy)
+
+3. **Set Environment Variables:**
+   ```bash
+   # Remove DYNAMODB_ENDPOINT to use AWS endpoint
+   export AWS_REGION=us-east-1
+   export AWS_ACCESS_KEY_ID=your-access-key
+   export AWS_SECRET_ACCESS_KEY=your-secret-key
+   export HTTP_PORT=8080
+   ```
 
 ## Database Configuration
 
@@ -92,10 +204,6 @@ You can override these by:
 - Roles: admin, counsellor, staff
 - Status: active, inactive, suspended
 
-## Local Development
-
-The system uses Docker Compose to run DynamoDB Local. The database is accessible at `http://localhost:8000`.
-
 ## API Server
 
 The API server provides REST endpoints to interact with the client data.
@@ -108,60 +216,302 @@ make run-server
 
 The server will start on `http://localhost:8080` (or the port specified in `HTTP_PORT` environment variable).
 
-### Available Endpoints
+## API Endpoints
 
-- `GET /health` - Health check endpoint
-- `GET /api/clients` - Get all clients
-- `GET /api/clients/{id}` - Get a specific client by ID
-- `GET /api/clients/active` - Get all active clients
-- `GET /api/clients/inactive` - Get all inactive clients
+### Base URL
 
-See [API_ENDPOINTS.md](API_ENDPOINTS.md) for detailed API documentation and Postman examples.
+- Local: `http://localhost:8080`
+- Port can be configured via `HTTP_PORT` environment variable (default: 8080)
+
+### Health Check
+
+**GET** `/health`
+
+Check if the server is running.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "Server is running"
+}
+```
+
+### Get All Clients
+
+**GET** `/api/clients`
+
+Retrieves all clients from the database.
+
+**Response:**
+```json
+[
+  {
+    "id": "client-001",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john.doe@example.com",
+    "phone": "555-0101",
+    "date_of_birth": "1985-03-15",
+    "address": "123 Main St, Anytown, ST 12345",
+    "emergency_contact_name": "Jane Doe",
+    "emergency_contact_phone": "555-0102",
+    "status": "active",
+    "created_at": "2025-11-11T18:00:00Z",
+    "updated_at": "2025-11-11T18:00:00Z"
+  }
+]
+```
+
+### Get Client by ID
+
+**GET** `/api/clients/{id}`
+
+Retrieves a single client by their ID.
+
+**Parameters:**
+- `id` (path parameter) - The client ID (e.g., `client-001`)
+
+**Example:**
+```
+GET /api/clients/client-001
+```
+
+**Response:**
+```json
+{
+  "id": "client-001",
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john.doe@example.com",
+  "phone": "555-0101",
+  "date_of_birth": "1985-03-15",
+  "address": "123 Main St, Anytown, ST 12345",
+  "emergency_contact_name": "Jane Doe",
+  "emergency_contact_phone": "555-0102",
+  "status": "active",
+  "created_at": "2025-11-11T18:00:00Z",
+  "updated_at": "2025-11-11T18:00:00Z"
+}
+```
+
+**Error Response (404):**
+```
+Client not found: client-999
+```
+
+### Get Active Clients
+
+**GET** `/api/clients/active`
+
+Retrieves all clients with status "active".
+
+**Response:**
+```json
+[
+  {
+    "id": "client-001",
+    "first_name": "John",
+    "last_name": "Doe",
+    "status": "active",
+    ...
+  }
+]
+```
+
+### Get Inactive Clients
+
+**GET** `/api/clients/inactive`
+
+Retrieves all clients with status "inactive".
+
+**Response:**
+```json
+[
+  {
+    "id": "client-004",
+    "first_name": "Emily",
+    "last_name": "Williams",
+    "status": "inactive",
+    ...
+  }
+]
+```
+
+### Error Responses
+
+All endpoints return appropriate HTTP status codes:
+
+- `200 OK` - Success
+- `400 Bad Request` - Invalid request (e.g., missing ID)
+- `404 Not Found` - Resource not found
+- `405 Method Not Allowed` - Wrong HTTP method
+- `500 Internal Server Error` - Server error
+
+Error responses include error messages in the response body.
+
+## Testing the API
+
+### Using cURL
+
+#### Health Check
+```bash
+curl -X GET http://localhost:8080/health
+```
+
+#### Get All Clients
+```bash
+curl -X GET http://localhost:8080/api/clients
+```
+
+#### Get Active Clients
+```bash
+curl -X GET http://localhost:8080/api/clients/active
+```
+
+#### Get Inactive Clients
+```bash
+curl -X GET http://localhost:8080/api/clients/inactive
+```
+
+#### Get Client by ID
+
+**Example: Get client-001**
+```bash
+curl -X GET http://localhost:8080/api/clients/client-001
+```
+
+**Example: Get client-002**
+```bash
+curl -X GET http://localhost:8080/api/clients/client-002
+```
+
+**Example: Get client-003**
+```bash
+curl -X GET http://localhost:8080/api/clients/client-003
+```
+
+**Example: Get client-004 (inactive)**
+```bash
+curl -X GET http://localhost:8080/api/clients/client-004
+```
+
+**Example: Get client-005**
+```bash
+curl -X GET http://localhost:8080/api/clients/client-005
+```
+
+#### Pretty Print with jq (optional)
+
+If you have `jq` installed, you can pipe the output for better formatting:
+
+```bash
+curl -s -X GET http://localhost:8080/api/clients | jq '.'
+```
+
+### Using the Test Script
+
+#### Local Testing
+
+Run the test script:
+```bash
+chmod +x test-api.sh
+./test-api.sh
+```
+
+Or set a custom base URL:
+```bash
+BASE_URL=http://localhost:8080 ./test-api.sh
+```
+
+#### API Gateway Testing
+
+If you have deployed API Gateway, test against it:
+
+```bash
+# Get the API Gateway URL
+API_URL=$(make get-api-url)
+
+# Test endpoints
+curl -X GET $API_URL/health
+curl -X GET $API_URL/api/clients
+curl -X GET $API_URL/api/clients/active
+curl -X GET $API_URL/api/clients/client-001
+```
+
+Or use the test script with API Gateway URL:
+```bash
+./test-api.sh https://your-api-id.execute-api.us-east-1.amazonaws.com/prod
+```
 
 ### Testing with Postman
 
-1. Start the server: `make run-server`
-2. Import the endpoints from `API_ENDPOINTS.md` into Postman
-3. All endpoints return JSON responses
-
-## Environment Setup
-
-### Local Development
-
-1. **Copy the environment template:**
+1. **Start the server:**
    ```bash
-   cp .env.example .env
+   make run-server
    ```
 
-2. **Configure your local environment:**
-   Edit `.env` with your local settings:
-   ```bash
-   DYNAMODB_ENDPOINT=http://localhost:8000
-   AWS_REGION=us-east-1
-   HTTP_PORT=8080
-   ```
+2. **Import these requests into Postman:**
 
-3. **Start the development environment:**
-   ```bash
-   make setup
-   ```
+   - **Health Check:**
+     - Method: `GET`
+     - URL: `http://localhost:8080/health`
 
-### Production Environment
+   - **Get All Clients:**
+     - Method: `GET`
+     - URL: `http://localhost:8080/api/clients`
 
-For production deployment, you'll need to configure the following:
+   - **Get Client by ID:**
+     - Method: `GET`
+     - URL: `http://localhost:8080/api/clients/client-001`
 
-1. **AWS Credentials:**
-   - Set up AWS IAM user/role with DynamoDB permissions
-   - Configure AWS credentials via environment variables or IAM roles
+   - **Get Active Clients:**
+     - Method: `GET`
+     - URL: `http://localhost:8080/api/clients/active`
 
-2. **Environment Variables:**
-   - `DYNAMODB_ENDPOINT`: Leave empty or remove to use AWS DynamoDB endpoint
-   - `AWS_REGION`: Your AWS region (e.g., `us-east-1`)
-   - `HTTP_PORT`: Server port (default: `8080`)
+   - **Get Inactive Clients:**
+     - Method: `GET`
+     - URL: `http://localhost:8080/api/clients/inactive`
 
-3. **DynamoDB Tables:**
-   - Create tables in AWS DynamoDB (or use the deployment script)
-   - Ensure proper IAM permissions for table operations
+3. **All responses are in JSON format** and can be viewed in Postman's response body.
+
+## API Gateway
+
+The project includes AWS API Gateway integration for production deployment. API Gateway provides a managed API endpoint that routes requests to your backend server.
+
+### Deploy API Gateway
+
+To deploy API Gateway to AWS:
+
+```bash
+# Set your backend server URL
+export BACKEND_URL="http://your-alb-or-ec2-url:8080"
+export AWS_REGION="us-east-1"
+
+# Deploy
+make deploy-api-gateway
+
+# Get the API Gateway URL
+make get-api-url
+
+# Test the API Gateway
+make test-api-gateway
+```
+
+**Note:** Make sure your backend server is running and accessible at the `BACKEND_URL` before deploying API Gateway.
+
+### API Gateway Features
+
+- **HTTP API** - Modern, low-latency API Gateway
+- **CORS Support** - Configured for cross-origin requests
+- **CloudWatch Logging** - Automatic request logging
+- **Throttling** - Rate limiting (100 burst, 50 sustained)
+- **All Routes** - Health check and all client endpoints configured
+
+### Local vs API Gateway
+
+- **Local Development:** Test directly against `http://localhost:8080` (no API Gateway needed)
+- **AWS Production:** Use API Gateway URL for managed API access
 
 ## CI/CD with GitHub Actions
 
@@ -194,6 +544,35 @@ To enable deployment, configure the following GitHub Secrets in your repository:
    - `AWS_ACCESS_KEY_ID`: AWS access key for deployment
    - `AWS_SECRET_ACCESS_KEY`: AWS secret key for deployment
    - `AWS_REGION`: AWS region (e.g., `us-east-1`)
+   - `BACKEND_URL`: Backend server URL for API Gateway (optional)
+
+#### Optional Secrets (for specific deployment targets)
+
+- `EC2_HOST`: EC2 instance hostname/IP
+- `EC2_USER`: EC2 SSH user (default: `ec2-user`)
+- `EC2_SSH_KEY`: SSH private key for EC2
+- `DOCKER_REGISTRY`: Docker registry URL (for container deployment)
+
+#### Deployment Process
+
+1. **Automatic Deployment:**
+   - Push to `main` branch triggers deployment
+   - Version tags (e.g., `v1.0.0`) trigger deployment
+   - Manual trigger via GitHub Actions UI
+
+2. **Deployment Steps:**
+   - Runs tests
+   - Builds production binary
+   - Configures AWS credentials
+   - Creates/updates DynamoDB tables
+   - Deploys API Gateway (if BACKEND_URL is set)
+   - Uploads deployment artifacts
+
+3. **Post-Deployment:**
+   - Binary available in GitHub Actions artifacts
+   - API Gateway URL displayed in deployment summary
+   - Configure your infrastructure to use the binary
+   - Set up service management (systemd, supervisor, etc.)
 
 #### Optional Deployment Targets
 
@@ -235,3 +614,91 @@ For AWS deployment, configure the DynamoDB endpoint to point to your AWS DynamoD
    # Deploy bin/server to your infrastructure
    ```
 
+4. **Deploy API Gateway:**
+   ```bash
+   export BACKEND_URL="http://your-backend-server:8080"
+   make deploy-api-gateway
+   ```
+
+### Deployment Targets
+
+#### EC2 Deployment
+
+1. Uncomment EC2 deployment steps in `.github/workflows/deploy.yml`
+2. Configure EC2 secrets in GitHub
+3. Set up SSH access to EC2 instance
+4. Configure systemd service on EC2
+
+#### Docker/ECS Deployment
+
+1. Uncomment Docker build/push steps
+2. Configure `DOCKER_REGISTRY` secret
+3. Set up ECS task definition
+4. Update ECS service
+
+#### Lambda Deployment
+
+1. Uncomment Lambda deployment steps
+2. Create Lambda function in AWS
+3. Configure Lambda environment variables
+4. Set up API Gateway if needed
+
+## Troubleshooting
+
+### Local Development Issues
+
+**DynamoDB Local not starting:**
+```bash
+make docker-down
+make docker-up
+```
+
+**Connection errors:**
+- Verify `.env` file exists and has correct `DYNAMODB_ENDPOINT`
+- Check Docker container is running: `make docker-status`
+- View logs: `make docker-logs`
+
+**Table creation fails:**
+- Ensure DynamoDB Local is running
+- Check environment variables are loaded
+- Verify AWS_REGION is set
+
+### Production Deployment Issues
+
+**AWS credentials not working:**
+- Verify secrets are set in GitHub
+- Check IAM permissions
+- Ensure AWS_REGION matches your resources
+
+**DynamoDB connection fails:**
+- Remove or unset `DYNAMODB_ENDPOINT` for AWS
+- Verify IAM permissions for DynamoDB
+- Check AWS region configuration
+
+**Build failures:**
+- Check Go version (requires 1.21+)
+- Verify all dependencies are in `go.mod`
+- Review GitHub Actions logs
+
+**API Gateway deployment fails:**
+- Verify `BACKEND_URL` is accessible
+- Check backend server is running
+- Ensure IAM permissions for API Gateway
+
+## Best Practices
+
+1. **Never commit `.env` files** - They contain sensitive information
+2. **Use `.env.example`** as a template for required variables
+3. **Use GitHub Secrets** for production credentials
+4. **Test locally** before pushing to main branch
+5. **Use version tags** for production releases
+6. **Monitor deployment logs** in GitHub Actions
+7. **Use API Gateway** for production API access
+8. **Monitor CloudWatch logs** for API Gateway requests
+
+## Additional Resources
+
+- [AWS DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
+- [AWS API Gateway Documentation](https://docs.aws.amazon.com/apigateway/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Go Environment Variables](https://golang.org/pkg/os/#Getenv)
