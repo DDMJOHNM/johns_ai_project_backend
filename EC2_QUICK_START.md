@@ -2,16 +2,7 @@
 
 ## ✅ Quick Start
 
-### 1. Create EC2 Key Pair (if you don't have one)
-
-```bash
-# Create and save the key
-aws ec2 create-key-pair --key-name johns-ai-backend-key --region us-east-1 \
-  --query 'KeyMaterial' --output text > ~/johns-ai-backend-key.pem
-chmod 400 ~/johns-ai-backend-key.pem
-```
-
-### 2. Add GitHub Secrets
+### 1. Add GitHub Secrets
 
 Go to: **GitHub Repo Settings** → **Secrets and variables** → **Actions**
 
@@ -20,11 +11,10 @@ Go to: **GitHub Repo Settings** → **Secrets and variables** → **Actions**
 | `AWS_ACCESS_KEY_ID` | Your AWS access key ID |
 | `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key |
 | `AWS_REGION` | `us-east-1` (or your preferred region) |
-| `EC2_KEY_NAME` | `johns-ai-backend-key` |
 | `EC2_INSTANCE_TYPE` | `t3.micro` (free tier) or `t3.small` |
 | `DEPLOY_EC2` | `true` |
 
-### 3. Deploy
+### 2. Deploy
 
 Create and push a tag:
 ```bash
@@ -34,7 +24,7 @@ git push origin v0.2.0
 
 Or trigger manually in GitHub Actions.
 
-### 4. Get Your Backend URL
+### 3. Get Your Backend URL
 
 After deployment completes, check the GitHub Actions job summary for:
 ```
@@ -42,7 +32,7 @@ Load Balancer DNS: johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com
 Backend URL: http://johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com
 ```
 
-### 5. Test It
+### 4. Test It
 
 ```bash
 # Health check
@@ -69,6 +59,7 @@ curl http://johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com/api/clie
 - ✅ Security groups restrict traffic
 - ✅ Health checks ensure instance is healthy
 - ✅ Auto-deregistration if instance fails
+- ✅ No SSH access exposed (uses Systems Manager Session Manager)
 - ⚠️ **HTTP only** (add HTTPS for production)
 
 ## 💰 Estimated Cost
@@ -96,14 +87,13 @@ aws ec2 describe-instances --region us-east-1 \
   --query 'Reservations[].Instances[?Tags[?Key==`Name`&&Value==`*backend*`]]'
 ```
 
-**SSH into instance:**
+**Access instance via AWS Systems Manager:**
 ```bash
-# Get instance IP
-INSTANCE_ID=$(aws ec2 describe-instances --region us-east-1 \
-  --filters "Name=tag:Name,Values=*backend*" \
-  --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+# List sessions
+aws ssm describe-sessions --region us-east-1
 
-ssh -i ~/johns-ai-backend-key.pem ec2-user@$INSTANCE_ID
+# Start a session
+aws ssm start-session --target i-xxxxx --region us-east-1
 ```
 
 **View backend logs:**

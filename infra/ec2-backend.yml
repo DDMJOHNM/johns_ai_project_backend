@@ -14,10 +14,6 @@ Parameters:
       - t3a.small
       - t3a.medium
   
-  KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: EC2 Key Pair for SSH access
-  
   Environment:
     Type: String
     Default: production
@@ -144,11 +140,6 @@ Resources:
           ToPort: !Ref ServerPort
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: Allow traffic from ALB
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-          Description: Allow SSH from anywhere (restrict in production)
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -157,7 +148,6 @@ Resources:
         - Key: Name
           Value: !Sub '${AWS::StackName}-ec2-sg'
 
-  # IAM Role for EC2
   EC2Role:
     Type: AWS::IAM::Role
     Properties:
@@ -207,7 +197,6 @@ Resources:
     Properties:
       ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}'
       InstanceType: !Ref InstanceType
-      KeyName: !Ref KeyName
       IamInstanceProfile: !Ref EC2InstanceProfile
       SubnetId: !Ref PublicSubnet1
       SecurityGroupIds:

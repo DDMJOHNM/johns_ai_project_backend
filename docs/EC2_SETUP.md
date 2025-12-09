@@ -37,27 +37,16 @@ This guide explains how to deploy your Johns AI Project backend to AWS EC2 with 
 ## Prerequisites
 
 1. **AWS Account** with EC2, Load Balancer, DynamoDB, and CloudFormation permissions
-2. **EC2 Key Pair** created in your AWS region (for SSH access)
-3. **GitHub Secrets** configured in your repository:
+2. **GitHub Secrets** configured in your repository:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
    - `AWS_REGION` (optional, defaults to us-east-1)
-   - `EC2_KEY_NAME` (your EC2 key pair name)
    - `EC2_INSTANCE_TYPE` (optional, defaults to t3.micro)
    - `DEPLOY_EC2` (set to `true` to enable EC2 deployment)
 
-## Step 1: Create EC2 Key Pair
+**Note:** No EC2 key pair is required. Access to instances is managed via AWS Systems Manager Session Manager.
 
-```bash
-# List existing key pairs
-aws ec2 describe-key-pairs --region us-east-1
-
-# Create a new key pair (if needed)
-aws ec2 create-key-pair --key-name johns-ai-backend-key --region us-east-1 --query 'KeyMaterial' --output text > johns-ai-backend-key.pem
-chmod 400 johns-ai-backend-key.pem
-```
-
-## Step 2: Add GitHub Secrets
+## Step 1: Add GitHub Secrets
 
 In your GitHub repository:
 1. Go to **Settings** → **Secrets and variables** → **Actions**
@@ -68,11 +57,10 @@ In your GitHub repository:
 | `AWS_ACCESS_KEY_ID` | Your AWS access key | `AKIA...` |
 | `AWS_SECRET_ACCESS_KEY` | Your AWS secret key | `aws...` |
 | `AWS_REGION` | AWS region | `us-east-1` |
-| `EC2_KEY_NAME` | Key pair name | `johns-ai-backend-key` |
 | `EC2_INSTANCE_TYPE` | Instance type | `t3.micro` or `t3.small` |
 | `DEPLOY_EC2` | Enable EC2 deployment | `true` |
 
-## Step 3: Deploy
+## Step 2: Deploy
 
 ### Option A: Trigger with Git Tag
 
@@ -88,7 +76,7 @@ In GitHub:
 2. Select **Deploy to Production**
 3. Click **Run workflow**
 
-## Step 4: Monitor Deployment
+## Step 3: Monitor Deployment
 
 1. Go to your GitHub repository → **Actions**
 2. Check the deploy job logs
@@ -102,7 +90,7 @@ The deployment will:
 5. Configure auto-scaling and health checks
 6. Seed the database
 
-## Step 5: Use Load Balancer URL
+## Step 4: Use Load Balancer URL
 
 Once deployment completes, you'll get a Load Balancer DNS like:
 ```
@@ -127,25 +115,32 @@ To use this backend with API Gateway:
 
 Or update the API Gateway CloudFormation template with the ALB URL.
 
-## Step 6: Access EC2 Instance (if needed)
+## Step 5: Access EC2 Instance (if needed)
+
+You can access the instance using AWS Systems Manager Session Manager (no SSH key required):
 
 ```bash
-# Get instance IP
-INSTANCE_ID=$(aws ec2 describe-instances \
+# List EC2 instances
+aws ec2 describe-instances --region us-east-1 \
   --filters "Name=tag:Name,Values=johns-ai-backend-ec2-backend" \
-  --query 'Reservations[0].Instances[0].PublicIpAddress' \
-  --output text \
-  --region us-east-1)
+  --query 'Reservations[0].Instances[0].InstanceId'
 
-# SSH into instance
-ssh -i johns-ai-backend-key.pem ec2-user@$INSTANCE_ID
+# Start a session to the instance
+aws ssm start-session --target i-xxxxx --region us-east-1
 
-# View logs
+# Once connected, view logs
 sudo journalctl -u john-ai-backend.service -f
 
 # Check service status
 sudo systemctl status john-ai-backend.service
 ```
+
+**Benefits of Session Manager:**
+- ✅ No SSH key management
+- ✅ Encrypted connections
+- ✅ CloudTrail logging of all commands
+- ✅ Fine-grained IAM permissions
+- ✅ Works with instances in private subnets
 
 ## Costs
 
@@ -210,8 +205,9 @@ aws elbv2 describe-target-health \
   --target-group-arn arn:aws:elasticloadbalancing:... \
   --region us-east-1
 
-# SSH into instance and check backend service
-sudo systemctl status john-ai-backend.service
+# Use Session Manager to check instance logs
+aws ssm start-session --target i-xxxxx --region us-east-1
+# Then inside the session:
 sudo journalctl -u john-ai-backend.service -n 50
 ```
 

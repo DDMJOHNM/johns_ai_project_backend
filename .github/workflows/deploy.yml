@@ -127,7 +127,6 @@ jobs:
             --stack-name johns-ai-backend-ec2 \
             --template-file infra/ec2-backend.yml \
             --parameter-overrides \
-              KeyName=${{ secrets.EC2_KEY_NAME }} \
               InstanceType=${{ secrets.EC2_INSTANCE_TYPE || 't3.micro' }} \
               Environment=production \
             --capabilities CAPABILITY_NAMED_IAM \
