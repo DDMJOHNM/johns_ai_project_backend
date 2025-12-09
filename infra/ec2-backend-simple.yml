@@ -28,6 +28,11 @@ Parameters:
     Description: Port the backend server runs on
 
 Mappings:
+  RegionVpc:
+    us-east-1:
+      VpcId: vpc-0ee6b255f251a1f3d
+    us-west-2:
+      VpcId: vpc-12345678
   RegionSubnets:
     us-east-1:
       Subnet1: subnet-e7aff891
@@ -42,6 +47,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Application Load Balancer
+      VpcId: !FindInMap [RegionVpc, !Ref 'AWS::Region', VpcId]
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -61,6 +67,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for EC2 instances
+      VpcId: !FindInMap [RegionVpc, !Ref 'AWS::Region', VpcId]
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: !Ref ServerPort
