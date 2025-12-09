@@ -4,7 +4,7 @@ Description: API Gateway HTTP API for johns_ai_project_backend
 Parameters:
   BackendUrl:
     Type: String
-    Description: Backend server URL (e.g., http://your-alb-123456789.us-east-1.elb.amazonaws.com:8080)
+    Description: Backend server URL (e.g., http://your-alb-dns.elb.amazonaws.com)
     Default: http://localhost:8080
   
   StageName:
@@ -47,10 +47,8 @@ Resources:
           - "*"
         MaxAge: 300
       Tags:
-        - Key: Project
-          Value: johns_ai_project_backend
-        - Key: Environment
-          Value: !Ref Environment
+        Project: johns_ai_project_backend
+        Environment: !Ref Environment
 
   # Default stage
   ApiStage:
@@ -59,23 +57,9 @@ Resources:
       ApiId: !Ref ApiGateway
       StageName: !Ref StageName
       AutoDeploy: true
-      DefaultRouteSettings:
-        ThrottlingBurstLimit: 100
-        ThrottlingRateLimit: 50
-        DetailedMetricsEnabled: true
       AccessLogSettings:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: |
-          {
-            "requestId": "$context.requestId",
-            "ip": "$context.identity.sourceIp",
-            "requestTime": "$context.requestTime",
-            "httpMethod": "$context.httpMethod",
-            "routeKey": "$context.routeKey",
-            "status": "$context.status",
-            "protocol": "$context.protocol",
-            "responseLength": "$context.responseLength"
-          }
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
 
   # CloudWatch Log Group for API Gateway
   ApiGatewayLogGroup:
@@ -91,7 +75,6 @@ Resources:
       ApiId: !Ref ApiGateway
       IntegrationType: HTTP_PROXY
       IntegrationUri: !Ref BackendUrl
-      IntegrationMethod: ANY
       PayloadFormatVersion: "1.0"
       ConnectionType: INTERNET
       TimeoutInMillis: 30000
@@ -134,14 +117,6 @@ Resources:
     Properties:
       ApiId: !Ref ApiGateway
       RouteKey: GET /api/clients/{id}
-      Target: !Sub integrations/${ApiIntegration}
-
-  # Catch-all route for any other paths (optional)
-  CatchAllRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref ApiGateway
-      RouteKey: $default
       Target: !Sub integrations/${ApiIntegration}
 
 Outputs:
