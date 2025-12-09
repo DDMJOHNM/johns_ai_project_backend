@@ -115,6 +115,40 @@ jobs:
           echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
           ./bin/seed
 
+      - name: Validate EC2 Backend CloudFormation template
+        run: aws cloudformation validate-template --template-body file://infra/ec2-backend.yml
+
+      - name: Deploy EC2 Backend with Load Balancer
+        env:
+          DEPLOY_EC2: ${{ secrets.DEPLOY_EC2 }}
+        if: env.DEPLOY_EC2 == 'true'
+        run: |
+          aws cloudformation deploy \
+            --stack-name johns-ai-backend-ec2 \
+            --template-file infra/ec2-backend.yml \
+            --parameter-overrides \
+              KeyName=${{ secrets.EC2_KEY_NAME }} \
+              InstanceType=${{ secrets.EC2_INSTANCE_TYPE || 't3.micro' }} \
+              Environment=production \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Get Load Balancer URL
+        env:
+          DEPLOY_EC2: ${{ secrets.DEPLOY_EC2 }}
+        if: env.DEPLOY_EC2 == 'true'
+        run: |
+          ALB_DNS=$(aws cloudformation describe-stacks \
+            --stack-name johns-ai-backend-ec2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' \
+            --output text \
+            --region ${{ secrets.AWS_REGION || 'us-east-1' }})
+          echo "Load Balancer DNS: $ALB_DNS"
+          echo "BACKEND_URL=http://$ALB_DNS" >> $GITHUB_ENV
+          echo "## 🚀 EC2 Backend Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend URL:** http://$ALB_DNS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Check:** http://$ALB_DNS/health" >> $GITHUB_STEP_SUMMARY
+
       - name: Build Docker image
         if: env.DOCKER_REGISTRY != ''
         run: |
