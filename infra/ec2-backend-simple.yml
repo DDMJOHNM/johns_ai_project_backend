@@ -27,6 +27,15 @@ Parameters:
     Default: 8080
     Description: Port the backend server runs on
 
+Mappings:
+  RegionSubnets:
+    us-east-1:
+      Subnet1: subnet-e7aff891
+      Subnet2: subnet-6c5c2e1e
+    us-west-2:
+      Subnet1: subnet-12345678
+      Subnet2: subnet-87654321
+
 Resources:
   # Security Groups (using default VPC)
   ALBSecurityGroup:
@@ -175,8 +184,8 @@ Resources:
       SecurityGroups:
         - !Ref ALBSecurityGroup
       Subnets:
-        - !Select [0, !GetAZs '']
-        - !Select [1, !GetAZs '']
+        - !FindInMap [RegionSubnets, !Ref 'AWS::Region', Subnet1]
+        - !FindInMap [RegionSubnets, !Ref 'AWS::Region', Subnet2]
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-alb'
