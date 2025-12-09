@@ -116,7 +116,7 @@ jobs:
           ./bin/seed
 
       - name: Validate EC2 Backend CloudFormation template
-        run: aws cloudformation validate-template --template-body file://infra/ec2-backend.yml
+        run: aws cloudformation validate-template --template-body file://infra/ec2-backend-simple.yml
 
       - name: Deploy EC2 Backend with Load Balancer
         env:
@@ -125,7 +125,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name johns-ai-backend-ec2 \
-            --template-file infra/ec2-backend.yml \
+            --template-file infra/ec2-backend-simple.yml \
             --parameter-overrides \
               InstanceType=${{ secrets.EC2_INSTANCE_TYPE || 't3.micro' }} \
               Environment=production \

@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EC2 Backend with Application Load Balancer for Johns AI Project (Uses Default VPC)'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: EC2 instance type
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3a.micro
+      - t3a.small
+      - t3a.medium
+  
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+      - development
+  
+  ServerPort:
+    Type: Number
+    Default: 8080
+    Description: Port the backend server runs on
+
+Resources:
+  # Security Groups (using default VPC)
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Application Load Balancer
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTP from anywhere
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS from anywhere
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alb-sg'
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EC2 instances
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ServerPort
+          ToPort: !Ref ServerPort
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allow traffic from ALB
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-ec2-sg'
+
+  # IAM Role for EC2
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:DeleteItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/clients'
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:DeleteItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/users'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # EC2 Instance
+  BackendInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Sub '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}'
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          
+          # Update system
+          yum update -y
+          yum install -y git golang
+          
+          # Create app directory
+          mkdir -p /opt/john-ai-project
+          cd /opt/john-ai-project
+          
+          # Clone repository (replace with your repo URL)
+          git clone https://github.com/DDMJOHNM/johns_ai_project_backend.git .
+          
+          # Build the server
+          go build -o bin/server ./cmd/server
+          
+          # Create systemd service
+          cat > /etc/systemd/system/john-ai-backend.service <<'EOF'
+          [Unit]
+          Description=Johns AI Project Backend
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=ec2-user
+          WorkingDirectory=/opt/john-ai-project
+          ExecStart=/opt/john-ai-project/bin/server
+          Restart=on-failure
+          RestartSec=10
+          Environment="AWS_REGION=${AWS::Region}"
+          Environment="PORT=${ServerPort}"
+          
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          
+          # Enable and start service
+          systemctl daemon-reload
+          systemctl enable john-ai-backend
+          systemctl start john-ai-backend
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-backend'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${AWS::StackName}-alb'
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-alb'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Target Group
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${AWS::StackName}-tg'
+      Port: !Ref ServerPort
+      Protocol: HTTP
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Targets:
+        - Id: !Ref BackendInstance
+          Port: !Ref ServerPort
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-tg'
+
+  # ALB Listener
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+Outputs:
+  LoadBalancerDNS:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${AWS::StackName}-alb-dns'
+
+  BackendURL:
+    Description: Backend URL to use in API Gateway and client applications
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-backend-url'
+
+  BackendInstanceId:
+    Description: EC2 Instance ID
+    Value: !Ref BackendInstance
+    Export:
+      Name: !Sub '${AWS::StackName}-instance-id'
+
+  BackendSecurityGroupId:
+    Description: Security group ID for backend instances
+    Value: !Ref EC2SecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-sg-id'
