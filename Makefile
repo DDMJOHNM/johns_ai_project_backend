@@ -1,4 +1,4 @@
-.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway
+.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway deploy-ec2-backend get-backend-url deploy-full-stack
 
 # Variables with defaults (can be overridden by .env file or environment)
 # The .env file is automatically loaded by docker-compose and Go programs
@@ -38,6 +38,11 @@ help:
 	@echo "Setup & Cleanup:"
 	@echo "  make setup           - Full setup (docker-up + test-db)"
 	@echo "  make clean           - Clean build artifacts and binaries"
+	@echo ""
+	@echo "EC2 Backend Commands:"
+	@echo "  make deploy-ec2-backend - Deploy EC2 backend instance"
+	@echo "  make get-backend-url     - Get EC2 backend URL"
+	@echo "  make deploy-full-stack  - Deploy EC2 + API Gateway (full stack)"
 	@echo ""
 	@echo "API Gateway Commands:"
 	@echo "  make deploy-api-gateway - Deploy API Gateway (requires BACKEND_URL)"
@@ -208,5 +213,36 @@ test-api-gateway:
 	echo "2. Get All Clients:"; \
 	curl -s $$API_URL/api/clients | jq '.' || curl -s $$API_URL/api/clients; \
 	echo ""
+
+# EC2 Backend commands
+deploy-ec2-backend:
+	@echo "Deploying EC2 backend..."
+	@aws cloudformation deploy \
+		--stack-name johns-ai-backend-ec2 \
+		--template-file infra/ec2-backend-simple.yml \
+		--parameter-overrides \
+			InstanceType=$${INSTANCE_TYPE:-t3.micro} \
+			Environment=$${ENVIRONMENT:-production} \
+		--capabilities CAPABILITY_NAMED_IAM \
+		--region $(AWS_REGION)
+
+get-backend-url:
+	@aws cloudformation describe-stacks \
+		--stack-name johns-ai-backend-ec2 \
+		--query 'Stacks[0].Outputs[?OutputKey==`BackendURL`].OutputValue' \
+		--output text \
+		--region $(AWS_REGION) 2>/dev/null || echo "Stack not found. Deploy with: make deploy-ec2-backend"
+
+deploy-full-stack: deploy-ec2-backend
+	@echo "Waiting for EC2 instance to be ready..."
+	@sleep 60
+	@BACKEND_URL=$$(make get-backend-url); \
+	if [ -z "$$BACKEND_URL" ] || [ "$$BACKEND_URL" = "Stack not found. Deploy with: make deploy-ec2-backend" ]; then \
+		echo "Error: Could not get backend URL from EC2 stack"; \
+		exit 1; \
+	fi; \
+	echo "Backend URL: $$BACKEND_URL"; \
+	echo "Deploying API Gateway..."; \
+	make deploy-api-gateway BACKEND_URL=$$BACKEND_URL
 
 
