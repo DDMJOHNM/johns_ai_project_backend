@@ -44,10 +44,6 @@ Resources:
           ToPort: 443
           CidrIp: 0.0.0.0/0
           Description: Allow HTTPS from anywhere
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-alb-sg'
@@ -62,10 +58,6 @@ Resources:
           ToPort: !Ref ServerPort
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: Allow traffic from ALB
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}-ec2-sg'
