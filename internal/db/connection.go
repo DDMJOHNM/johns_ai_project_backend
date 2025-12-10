@@ -22,30 +22,40 @@ type Client struct {
 // It reads configuration from environment variables:
 //   - DYNAMODB_ENDPOINT: DynamoDB endpoint (if empty, uses AWS DynamoDB)
 //   - AWS_REGION: AWS region (default: us-east-1)
-//   - AWS_ACCESS_KEY_ID: AWS access key (default: test for local)
-//   - AWS_SECRET_ACCESS_KEY: AWS secret key (default: test for local)
+//   - AWS_ACCESS_KEY_ID: AWS access key (optional, uses IAM role if not set)
+//   - AWS_SECRET_ACCESS_KEY: AWS secret key (optional, uses IAM role if not set)
 func NewClient(ctx context.Context) (*Client, error) {
 	endpoint := getEnv("DYNAMODB_ENDPOINT", "")
 	region := getEnv("AWS_REGION", "us-east-1")
-	accessKey := getEnv("AWS_ACCESS_KEY_ID", "test")
-	secretKey := getEnv("AWS_SECRET_ACCESS_KEY", "test")
+	accessKey := getEnv("AWS_ACCESS_KEY_ID", "")
+	secretKey := getEnv("AWS_SECRET_ACCESS_KEY", "")
 
-	// Load AWS config with custom endpoint for local DynamoDB
-	cfg, err := config.LoadDefaultConfig(ctx,
+	// Build config options
+	cfgOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
-			func(service, reg string, options ...interface{}) (aws.Endpoint, error) {
-				if service == dynamodb.ServiceID && endpoint != "" {
-					return aws.Endpoint{
-						URL:           endpoint,
-						SigningRegion: reg,
-					}, nil
-				}
-				return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-			},
-		)),
-	)
+	}
+
+	// Only use static credentials if both access key and secret are provided (for local dev)
+	if accessKey != "" && secretKey != "" {
+		cfgOpts = append(cfgOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
+	}
+	// Otherwise, LoadDefaultConfig will automatically use IAM role credentials on EC2
+
+	// Add custom endpoint resolver for local DynamoDB
+	cfgOpts = append(cfgOpts, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+		func(service, reg string, options ...interface{}) (aws.Endpoint, error) {
+			if service == dynamodb.ServiceID && endpoint != "" {
+				return aws.Endpoint{
+					URL:           endpoint,
+					SigningRegion: reg,
+				}, nil
+			}
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+		},
+	)))
+
+	// Load AWS config
+	cfg, err := config.LoadDefaultConfig(ctx, cfgOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
