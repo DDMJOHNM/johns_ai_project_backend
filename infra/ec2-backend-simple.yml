@@ -56,7 +56,7 @@ Resources:
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
       Policies:
-        - PolicyName: DynamoDBAccess
+        - PolicyName: DynamoDBAndS3Access
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -71,6 +71,11 @@ Resources:
                   - dynamodb:BatchGetItem
                   - dynamodb:BatchWriteItem
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: 'arn:aws:s3:::*'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile

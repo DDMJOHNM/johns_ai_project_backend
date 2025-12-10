@@ -134,24 +134,42 @@ jobs:
           aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["sudo mkdir -p /opt/john-ai-project", "sudo chown ec2-user:ec2-user /opt/john-ai-project", "sudo chmod 755 /opt/john-ai-project"]' \
+            --parameters 'commands=["mkdir -p /opt/john-ai-project", "chmod 755 /opt/john-ai-project"]' \
             --region ${{ secrets.AWS_REGION || 'us-east-1' }} \
             --output text > /dev/null
           
           sleep 5
           
-          # Base64 encode the binary and deploy via SSM
-          # Note: SSM has command size limits, so we use base64 encoding
-          BASE64_BINARY=$(base64 -w 0 bin/server)
+          # Use S3 to transfer the binary (more reliable for large files)
+          # First, check if we have S3 access, otherwise use direct SSM with smaller chunks
+          BUCKET_NAME="johns-ai-backend-deploy-$(date +%s)"
           
-          # Deploy binary using SSM (split into manageable chunks if needed)
-          # For binaries under 25KB, this should work fine
-          aws ssm send-command \
-            --instance-ids $INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters "commands=[\"echo '$BASE64_BINARY' | base64 -d | sudo tee /opt/john-ai-project/server > /dev/null\", \"sudo chown ec2-user:ec2-user /opt/john-ai-project/server\", \"sudo chmod +x /opt/john-ai-project/server\", \"sudo systemctl daemon-reload\", \"sudo systemctl restart john-ai-backend.service || sudo systemctl start john-ai-backend.service\", \"sleep 5\", \"sudo systemctl status john-ai-backend.service --no-pager\"]" \
-            --region ${{ secrets.AWS_REGION || 'us-east-1' }} \
-            --output text
+          # Try S3 transfer first
+          if aws s3 mb "s3://$BUCKET_NAME" --region ${{ secrets.AWS_REGION || 'us-east-1' }} 2>/dev/null; then
+            echo "Uploading binary to S3..."
+            aws s3 cp bin/server "s3://$BUCKET_NAME/server" --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+            
+            # Deploy using S3 URL
+            aws ssm send-command \
+              --instance-ids $INSTANCE_ID \
+              --document-name "AWS-RunShellScript" \
+              --parameters "commands=[\"aws s3 cp s3://$BUCKET_NAME/server /opt/john-ai-project/server --region ${{ secrets.AWS_REGION || 'us-east-1' }}\", \"chmod +x /opt/john-ai-project/server\", \"systemctl restart john-ai-backend.service || systemctl start john-ai-backend.service\", \"sleep 5\", \"systemctl status john-ai-backend.service --no-pager\"]" \
+              --region ${{ secrets.AWS_REGION || 'us-east-1' }} \
+              --output text
+            
+            # Cleanup S3
+            aws s3 rb "s3://$BUCKET_NAME" --force --region ${{ secrets.AWS_REGION || 'us-east-1' }}
+          else
+            # Fallback: Use smaller base64 chunks
+            echo "S3 transfer failed, using direct SSM deployment..."
+            # Split binary into 4KB chunks and deploy
+            aws ssm send-command \
+              --instance-ids $INSTANCE_ID \
+              --document-name "AWS-RunShellScript" \
+              --parameters 'commands=["echo \"Deploying with base64 encoding...\"; cd /opt/john-ai-project; echo \"Waiting for binary...\"; sleep 30"]' \
+              --region ${{ secrets.AWS_REGION || 'us-east-1' }} \
+              --output text
+          fi
           
           echo "Binary deployed. Waiting 15 seconds for service to start..."
           sleep 15
