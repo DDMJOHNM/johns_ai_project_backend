@@ -123,6 +123,7 @@ Resources:
           RestartSec=10
           Environment="AWS_REGION=${AWS::Region}"
           Environment="HTTP_PORT=8080"
+          Environment="DYNAMODB_ENDPOINT="
           
           [Install]
           WantedBy=multi-user.target

@@ -132,10 +132,10 @@ run-example:
 	 go run ./cmd/example
 
 build-server:
-	@echo "Building server binary..."
+	@echo "Building server binary for Linux..."
 	@mkdir -p $(BINARY_DIR)
-	@go build -o $(BINARY_DIR)/server ./cmd/server
-	@echo "✓ Created $(BINARY_DIR)/server"
+	@GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BINARY_DIR)/server ./cmd/server
+	@echo "✓ Created $(BINARY_DIR)/server (Linux x86_64)"
 
 run-server:
 	@echo "Starting API server..."
