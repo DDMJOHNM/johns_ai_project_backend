@@ -61,13 +61,10 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	})
 
 	// API routes
-	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
-			clientHandler.GetClientList(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})
+	// IMPORTANT: More specific routes must be registered BEFORE less specific ones
+	// because Go's ServeMux matches by longest prefix
+
+	// Specific routes first
 	mux.HandleFunc("/api/clients/active", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			clientHandler.GetActiveClients(w, r)
@@ -82,26 +79,52 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			http.NotFound(w, r)
 		}
 	})
-	// Handle /api/clients/{id} pattern
+	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			clientHandler.CreateClient(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	// Base route for GET /api/clients
+	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
+			clientHandler.GetClientList(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	// Handle /api/clients/{id} pattern (must be last)
+	// This catch-all route will match any /api/clients/* that isn't handled above
 	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Check if this is one of our specific routes (shouldn't happen, but safety check)
+		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
+			// These should be handled by specific routes above, but if we get here, return 404
+			http.NotFound(w, r)
+			return
+		}
+
+		// Only handle GET requests for client by ID
 		if r.Method == http.MethodGet {
-			// Extract ID from path: /api/clients/{id}
-			path := r.URL.Path
 			if path == "/api/clients" || path == "/api/clients/" {
 				http.NotFound(w, r)
 				return
 			}
 			// Remove /api/clients/ prefix to get the ID
 			id := path[len("/api/clients/"):]
-			if id == "active" || id == "inactive" {
-				// These are handled by specific routes above
+			if id == "" {
 				http.NotFound(w, r)
 				return
 			}
 			// Create a request with PathValue for the handler
-			r = r.WithContext(context.WithValue(r.Context(), "client_id", id))
+			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
 			clientHandler.GetClientByID(w, r)
 		} else {
+			// For non-GET requests, return 404 (POST /api/clients/add should be caught above)
 			http.NotFound(w, r)
 		}
 	})
@@ -128,6 +151,7 @@ func (r *Router) Start() error {
 	log.Printf("Available endpoints:")
 	log.Printf("  GET /health - Health check")
 	log.Printf("  GET /api/clients - Get all clients")
+	log.Printf("  POST /api/clients/add - Create a new client")
 	log.Printf("  GET /api/clients/active - Get active clients")
 	log.Printf("  GET /api/clients/inactive - Get inactive clients")
 	log.Printf("  GET /api/clients/{id} - Get client by ID")
@@ -174,4 +198,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-

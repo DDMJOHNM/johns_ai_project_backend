@@ -55,3 +55,10 @@ func (s *ClientService) GetInactiveClients(ctx context.Context) ([]repository.Cl
 	return clients, nil
 }
 
+// CreateClient creates a new client
+func (s *ClientService) CreateClient(ctx context.Context, client *repository.Client) error {
+	if err := s.repo.CreateClient(ctx, client); err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	return nil
+}
