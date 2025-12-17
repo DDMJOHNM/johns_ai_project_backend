@@ -88,11 +88,19 @@ Resources:
       Target: !Sub integrations/${ApiIntegration}
 
   # Get all clients route
-  ClientsRoute:
+  ClientsGetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref ApiGateway
       RouteKey: GET /api/clients
+      Target: !Sub integrations/${ApiIntegration}
+
+  # Create client route
+  ClientsAddRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: POST /api/clients/add
       Target: !Sub integrations/${ApiIntegration}
 
   # Get active clients route
