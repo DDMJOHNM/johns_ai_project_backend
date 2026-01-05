@@ -137,6 +137,48 @@ Resources:
           systemctl daemon-reload
           systemctl enable john-ai-backend.service
           
+          # Install and configure CloudWatch agent for log forwarding
+          wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+          rpm -U ./amazon-cloudwatch-agent.rpm
+          
+          # Configure rsyslog to forward application logs to a file
+          mkdir -p /var/log/john-ai-backend
+          cat > /etc/rsyslog.d/30-john-ai-backend.conf <<'RSYSLOGEOF'
+          # Forward john-ai-backend service logs to file
+          if $programname == 'john-ai-backend' then /var/log/john-ai-backend/application.log
+          & stop
+          RSYSLOGEOF
+          
+          systemctl restart rsyslog
+          
+          # Create CloudWatch agent configuration
+          cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
+          {
+            "logs": {
+              "logs_collected": {
+                "files": {
+                  "collect_list": [
+                    {
+                      "file_path": "/var/log/john-ai-backend/application.log",
+                      "log_group_name": "/aws/ec2/john-ai-backend/application",
+                      "log_stream_name": "{instance_id}",
+                      "retention_in_days": 7,
+                      "timezone": "UTC"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+          CWEOF
+          
+          # Start CloudWatch agent
+          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+            -a fetch-config \
+            -m ec2 \
+            -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+            -s
+          
           # The binary will be deployed by GitHub Actions
           # Service will start automatically once binary is present
       Tags:

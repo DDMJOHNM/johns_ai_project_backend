@@ -79,7 +79,28 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			http.NotFound(w, r)
 		}
 	})
+	// POST /api/clients/add - Create new client (must be before catch-all)
+	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
+		logMsg := fmt.Sprintf("[ROUTER] POST /api/clients/add - Method: %s, Path: %s", r.Method, r.URL.Path)
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+		if r.Method == http.MethodPost {
+			log.Printf("[ROUTER] Calling CreateClient handler")
+			fmt.Fprintf(os.Stderr, "[ROUTER] Calling CreateClient handler\n")
+			clientHandler.CreateClient(w, r)
+		} else {
+			logMsg := fmt.Sprintf("[ROUTER] Method not POST for /api/clients/add: %s", r.Method)
+			log.Printf(logMsg)
+			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+			http.NotFound(w, r)
+		}
+	})
+
+	// Legacy route: POST /api/client/add (singular) - for backward compatibility
 	mux.HandleFunc("/api/client/add", func(w http.ResponseWriter, r *http.Request) {
+		logMsg := fmt.Sprintf("[ROUTER] POST /api/client/add - Method: %s, Path: %s", r.Method, r.URL.Path)
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 		if r.Method == http.MethodPost {
 			clientHandler.CreateClient(w, r)
 		} else {
@@ -100,10 +121,17 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// This catch-all route will match any /api/clients/* that isn't handled above
 	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		method := r.Method
+		logMsg := fmt.Sprintf("[ROUTER] Catch-all /api/clients/ - Method: %s, Path: %s", method, path)
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 
 		// Check if this is one of our specific routes (shouldn't happen, but safety check)
 		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
 			// These should be handled by specific routes above, but if we get here, return 404
+			logMsg := fmt.Sprintf("[ROUTER] Specific route %s matched in catch-all - returning 404", path)
+			log.Printf(logMsg)
+			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 			http.NotFound(w, r)
 			return
 		}
@@ -124,7 +152,10 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
 			clientHandler.GetClientByID(w, r)
 		} else {
-			// For non-GET requests, return 404 (POST /api/clients/add should be caught above)
+			// For non-GET requests, return 404
+			logMsg := fmt.Sprintf("[ROUTER] Non-GET request in catch-all: %s %s - returning 404", method, path)
+			log.Printf(logMsg)
+			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 			http.NotFound(w, r)
 		}
 	})
@@ -133,6 +164,8 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// This handles the case where API Gateway forwards /prod/health instead of /health
 	stripStagePrefixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		originalPath := r.URL.Path
+		originalMethod := r.Method
+
 		// Remove common stage prefixes if present
 		path := r.URL.Path
 		if len(path) > 5 && path[:5] == "/prod" && len(path) > 5 && path[5] == '/' {
@@ -144,7 +177,8 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 
 		// Log all requests for debugging (using both log and fmt for visibility)
-		logMsg := fmt.Sprintf("[%s] %s %s -> %s", r.Method, originalPath, r.RemoteAddr, r.URL.Path)
+		logMsg := fmt.Sprintf("[MIDDLEWARE] %s %s (from %s) -> %s | Headers: %v",
+			originalMethod, originalPath, r.RemoteAddr, r.URL.Path, r.Header)
 		log.Printf(logMsg)
 		fmt.Fprintf(os.Stderr, "%s\n", logMsg) // Also write to stderr for immediate visibility
 
@@ -177,7 +211,7 @@ func (r *Router) Start() error {
 	log.Printf("  GET /api/clients/active - Get active clients")
 	log.Printf("  GET /api/clients/inactive - Get inactive clients")
 	log.Printf("  GET /api/clients/{id} - Get client by ID")
-	log.Printf("  POST /api/clients/add - Add a new client")
+	log.Printf("  POST /api/client/add - Add a new client")
 
 	if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server failed to start: %w", err)

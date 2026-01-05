@@ -114,7 +114,7 @@ type CreateClientRequest struct {
 	Status                string `json:"status"`
 }
 
-// CreateClient handles POST /api/clients/add - creates a new client
+// CreateClient handles POST /api/client/add - creates a new client
 func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

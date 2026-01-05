@@ -59,13 +59,24 @@ Resources:
       AutoDeploy: true
       AccessLogSettings:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","error":{"message":"$context.error.message","messageString":"$context.error.messageString","validationErrorString":"$context.error.validationErrorString"}}'
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: true
+        LoggingLevel: INFO
+        DataTraceEnabled: true
 
-  # CloudWatch Log Group for API Gateway
+  # CloudWatch Log Group for API Gateway Access Logs
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/apigateway/${ApiGateway}
+      LogGroupName: !Sub /aws/apigateway/${ApiGateway}/access
+      RetentionInDays: 7
+  
+  # CloudWatch Log Group for API Gateway Execution Logs
+  ApiGatewayExecutionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${ApiGateway}/execution
       RetentionInDays: 7
 
   # Integration with backend server (GET)
@@ -108,8 +119,16 @@ Resources:
       RouteKey: GET /api/clients
       Target: !Sub integrations/${ApiIntegration}
 
-  # Create client route
+  # Create client route (plural - RESTful convention)
   ClientAddRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: POST /api/clients/add
+      Target: !Sub integrations/${ApiIntegrationPost}
+  
+  # Legacy create client route (singular - for backward compatibility)
+  ClientAddRouteLegacy:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref ApiGateway
