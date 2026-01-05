@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/jmason/john_ai_project/internal/repository"
 	"github.com/jmason/john_ai_project/internal/service"
 )
 
@@ -11,14 +15,12 @@ type ClientHandler struct {
 	service *service.ClientService
 }
 
-// NewClientHandler creates a new client handler
 func NewClientHandler(service *service.ClientService) *ClientHandler {
 	return &ClientHandler{
 		service: service,
 	}
 }
 
-// GetClientList handles GET /api/clients - returns all clients
 func (h *ClientHandler) GetClientList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -34,25 +36,22 @@ func (h *ClientHandler) GetClientList(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-// GetClientByID handles GET /api/clients/:id - returns a single client
 func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get ID from context (set by router) or from URL path
 	var id string
 	if ctxID := r.Context().Value("client_id"); ctxID != nil {
 		id = ctxID.(string)
 	} else {
-		// Fallback: extract from path
 		path := r.URL.Path
 		if len(path) > len("/api/clients/") {
 			id = path[len("/api/clients/"):]
 		}
 	}
-	
+
 	if id == "" {
 		http.Error(w, "Client ID is required", http.StatusBadRequest)
 		return
@@ -67,7 +66,6 @@ func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, client)
 }
 
-// GetActiveClients handles GET /api/clients/active - returns all active clients
 func (h *ClientHandler) GetActiveClients(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -83,7 +81,6 @@ func (h *ClientHandler) GetActiveClients(w http.ResponseWriter, r *http.Request)
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-// GetInactiveClients handles GET /api/clients/inactive - returns all inactive clients
 func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -99,3 +96,29 @@ func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Reques
 	RespondJSON(w, http.StatusOK, clients)
 }
 
+func (h *ClientHandler) AddClient(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var newClient repository.Client
+	//populate the new client with the current timestamp
+	now := time.Now().Format(time.RFC3339)
+	newClient.CreatedAt = now
+	newClient.UpdatedAt = now
+	newClient.Status = "active"
+
+	if err := json.NewDecoder(r.Body).Decode(&newClient); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	newClient.ID = uuid.New().String()
+	err := h.service.AddClient(r.Context(), &newClient)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	RespondJSON(w, http.StatusCreated, "Client added successfully")
+}

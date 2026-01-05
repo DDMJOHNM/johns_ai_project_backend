@@ -12,18 +12,18 @@ import (
 
 // Client represents a client in the database
 type Client struct {
-	ID                      string `dynamodbav:"id" json:"id"`
-	FirstName               string `dynamodbav:"first_name" json:"first_name"`
-	LastName                string `dynamodbav:"last_name" json:"last_name"`
-	Email                   string `dynamodbav:"email" json:"email"`
-	Phone                   string `dynamodbav:"phone" json:"phone"`
-	DateOfBirth             string `dynamodbav:"date_of_birth" json:"date_of_birth"`
-	Address                 string `dynamodbav:"address" json:"address"`
-	EmergencyContactName    string `dynamodbav:"emergency_contact_name" json:"emergency_contact_name"`
-	EmergencyContactPhone   string `dynamodbav:"emergency_contact_phone" json:"emergency_contact_phone"`
-	Status                  string `dynamodbav:"status" json:"status"`
-	CreatedAt               string `dynamodbav:"created_at" json:"created_at"`
-	UpdatedAt               string `dynamodbav:"updated_at" json:"updated_at"`
+	ID                    string `dynamodbav:"id" json:"id"`
+	FirstName             string `dynamodbav:"first_name" json:"first_name"`
+	LastName              string `dynamodbav:"last_name" json:"last_name"`
+	Email                 string `dynamodbav:"email" json:"email"`
+	Phone                 string `dynamodbav:"phone" json:"phone"`
+	DateOfBirth           string `dynamodbav:"date_of_birth" json:"date_of_birth"`
+	Address               string `dynamodbav:"address" json:"address"`
+	EmergencyContactName  string `dynamodbav:"emergency_contact_name" json:"emergency_contact_name"`
+	EmergencyContactPhone string `dynamodbav:"emergency_contact_phone" json:"emergency_contact_phone"`
+	Status                string `dynamodbav:"status" json:"status"`
+	CreatedAt             string `dynamodbav:"created_at" json:"created_at"`
+	UpdatedAt             string `dynamodbav:"updated_at" json:"updated_at"`
 }
 
 // ClientRepository handles database operations for clients
@@ -120,3 +120,21 @@ func (r *ClientRepository) GetClientsByStatus(ctx context.Context, status string
 	return clients, nil
 }
 
+func (r *ClientRepository) AddClient(ctx context.Context, client Client) error {
+	item, err := attributevalue.MarshalMap(client)
+	if err != nil {
+		return fmt.Errorf("failed to marshal client: %w", err)
+	}
+
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(r.tableName),
+		Item:      item,
+	}
+
+	_, err = r.client.PutItem(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to put client item: %w", err)
+	}
+
+	return nil
+}
