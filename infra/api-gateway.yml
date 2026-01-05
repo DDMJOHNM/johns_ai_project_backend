@@ -66,13 +66,14 @@ Resources:
         DataTraceEnabled: true
 
   # CloudWatch Log Group for API Gateway Access Logs
+  # Note: Keeping original name to avoid breaking existing deployments
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/apigateway/${ApiGateway}/access
+      LogGroupName: !Sub /aws/apigateway/${ApiGateway}
       RetentionInDays: 7
   
-  # CloudWatch Log Group for API Gateway Execution Logs
+  # CloudWatch Log Group for API Gateway Execution Logs (optional, for detailed debugging)
   ApiGatewayExecutionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -120,19 +121,12 @@ Resources:
       Target: !Sub integrations/${ApiIntegration}
 
   # Create client route (plural - RESTful convention)
+  # Note: This updates the existing route from POST /api/client/add to POST /api/clients/add
   ClientAddRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref ApiGateway
       RouteKey: POST /api/clients/add
-      Target: !Sub integrations/${ApiIntegrationPost}
-  
-  # Legacy create client route (singular - for backward compatibility)
-  ClientAddRouteLegacy:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref ApiGateway
-      RouteKey: POST /api/client/add
       Target: !Sub integrations/${ApiIntegrationPost}
 
   # Get active clients route
