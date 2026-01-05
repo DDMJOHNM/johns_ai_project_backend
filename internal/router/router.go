@@ -132,6 +132,7 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// Middleware to strip stage prefix (e.g., /prod) from API Gateway requests
 	// This handles the case where API Gateway forwards /prod/health instead of /health
 	stripStagePrefixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		originalPath := r.URL.Path
 		// Remove common stage prefixes if present
 		path := r.URL.Path
 		if len(path) > 5 && path[:5] == "/prod" && len(path) > 5 && path[5] == '/' {
@@ -141,6 +142,10 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		} else if len(path) > 8 && path[:8] == "/staging" && len(path) > 8 && path[8] == '/' {
 			r.URL.Path = path[8:] // Remove /staging
 		}
+
+		// Log all requests for debugging
+		log.Printf("[%s] %s %s -> %s", r.Method, originalPath, r.RemoteAddr, r.URL.Path)
+
 		mux.ServeHTTP(w, r)
 	})
 
