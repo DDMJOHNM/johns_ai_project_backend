@@ -126,6 +126,9 @@ Resources:
           Environment="AWS_REGION=${AWS::Region}"
           Environment="HTTP_PORT=8080"
           Environment="DYNAMODB_ENDPOINT="
+          StandardOutput=journal
+          StandardError=journal
+          SyslogIdentifier=john-ai-backend
           
           [Install]
           WantedBy=multi-user.target

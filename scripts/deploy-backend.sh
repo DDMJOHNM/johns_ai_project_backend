@@ -39,6 +39,8 @@ aws ssm send-command \
     \"systemctl stop john-ai-backend.service || true\",
     \"aws s3 cp s3://$BUCKET_NAME/server /opt/john-ai-project/server --region $REGION\",
     \"chmod +x /opt/john-ai-project/server\",
+    \"sudo sed -i 's|ExecStart=/opt/john-ai-project/server|ExecStart=/opt/john-ai-project/server\\nStandardOutput=journal\\nStandardError=journal|' /etc/systemd/system/john-ai-backend.service || true\",
+    \"systemctl daemon-reload\",
     \"systemctl start john-ai-backend.service\",
     \"sleep 3\",
     \"systemctl status john-ai-backend.service --no-pager -l\"

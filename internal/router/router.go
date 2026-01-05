@@ -60,79 +60,65 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	// API routes
-	// IMPORTANT: More specific routes must be registered BEFORE less specific ones
-	// because Go's ServeMux matches by longest prefix
-
-	// Specific routes first
-	mux.HandleFunc("/api/clients/active", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			clientHandler.GetActiveClients(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})
-	mux.HandleFunc("/api/clients/inactive", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			clientHandler.GetInactiveClients(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})
-	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("DEBUG: /api/clients/add handler called - Method: %s, Path: %s", r.Method, r.URL.Path)
-		if r.Method == http.MethodPost {
-			log.Printf("DEBUG: Calling CreateClient handler")
-			clientHandler.CreateClient(w, r)
-		} else {
-			log.Printf("DEBUG: Method not POST, returning 404. Method was: %s", r.Method)
-			http.NotFound(w, r)
-		}
-	})
-
-	// Base route for GET /api/clients
+	// API routes - handle /api/clients/* routes manually to avoid ServeMux prefix matching issues
 	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
-			clientHandler.GetClientList(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})
-
-	// Handle /api/clients/{id} pattern (must be last)
-	// Note: We use a pattern that won't conflict with specific routes above
-	// ServeMux matches by longest path, so /api/clients/add should match before this
-	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		log.Printf("DEBUG: Catch-all /api/clients/ handler called - Method: %s, Path: %s", r.Method, path)
+		log.Printf("DEBUG: /api/clients handler - Method: %s, Path: %s", r.Method, path)
 
-		// IMPORTANT: Check for specific routes FIRST - if ServeMux matched this instead of the specific route,
-		// we need to return 404 to prevent incorrect handling
-		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
-			log.Printf("ERROR: Catch-all matched specific route %s - this should not happen! Returning 404", path)
-			http.NotFound(w, r)
+		// Exact match: GET /api/clients
+		if path == "/api/clients" {
+			if r.Method == http.MethodGet {
+				clientHandler.GetClientList(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
 			return
 		}
 
-		// Only handle GET requests for client by ID
-		if r.Method == http.MethodGet {
-			if path == "/api/clients" || path == "/api/clients/" {
-				http.NotFound(w, r)
+		// Handle paths with /api/clients/ prefix
+		if len(path) > len("/api/clients/") {
+			suffix := path[len("/api/clients/"):]
+			
+			switch suffix {
+			case "active":
+				if r.Method == http.MethodGet {
+					clientHandler.GetActiveClients(w, r)
+				} else {
+					http.NotFound(w, r)
+				}
+				return
+			case "inactive":
+				if r.Method == http.MethodGet {
+					clientHandler.GetInactiveClients(w, r)
+				} else {
+					http.NotFound(w, r)
+				}
+				return
+			case "add":
+				log.Printf("DEBUG: /api/clients/add matched - Method: %s", r.Method)
+				if r.Method == http.MethodPost {
+					log.Printf("DEBUG: Calling CreateClient handler")
+					clientHandler.CreateClient(w, r)
+				} else {
+					log.Printf("DEBUG: Method not POST, returning 404. Method was: %s", r.Method)
+					http.NotFound(w, r)
+				}
+				return
+			default:
+				// Handle /api/clients/{id} - only GET allowed
+				if r.Method == http.MethodGet {
+					log.Printf("DEBUG: Handling client by ID: %s", suffix)
+					r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, suffix))
+					clientHandler.GetClientByID(w, r)
+				} else {
+					http.NotFound(w, r)
+				}
 				return
 			}
-			// Remove /api/clients/ prefix to get the ID
-			id := path[len("/api/clients/"):]
-			if id == "" {
-				http.NotFound(w, r)
-				return
-			}
-			// Create a request with PathValue for the handler
-			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
-			clientHandler.GetClientByID(w, r)
-		} else {
-			// For non-GET requests, return 404 (POST /api/clients/add should be caught above)
-			http.NotFound(w, r)
 		}
+
+		// Fallback
+		http.NotFound(w, r)
 	})
 
 	// Middleware to strip stage prefix (e.g., /prod) from API Gateway requests
@@ -149,8 +135,10 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			r.URL.Path = path[8:] // Remove /staging
 		}
 
-		// Log all requests for debugging
-		log.Printf("[%s] %s %s -> %s", r.Method, originalPath, r.RemoteAddr, r.URL.Path)
+		// Log all requests for debugging (using both log and fmt for visibility)
+		logMsg := fmt.Sprintf("[%s] %s %s -> %s", r.Method, originalPath, r.RemoteAddr, r.URL.Path)
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg) // Also write to stderr for immediate visibility
 
 		mux.ServeHTTP(w, r)
 	})
