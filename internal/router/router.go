@@ -61,13 +61,31 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	})
 
 	// API routes - handle /api/clients/* routes manually to avoid ServeMux prefix matching issues
+	// Register both /api/clients (exact) and /api/clients/ (prefix) to catch all variations
 	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		log.Printf("DEBUG: /api/clients handler - Method: %s, Path: %s", r.Method, path)
+		method := r.Method
+		
+		// Exact match: GET /api/clients (no trailing slash)
+		if path == "/api/clients" && method == http.MethodGet {
+			clientHandler.GetClientList(w, r)
+			return
+		}
+		
+		// If not exact match, let the /api/clients/ handler deal with it
+		http.NotFound(w, r)
+	})
+	
+	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		method := r.Method
+		logMsg := fmt.Sprintf("DEBUG: /api/clients handler - Method: %s, Path: '%s', PathLen: %d", method, path, len(path))
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 
 		// Exact match: GET /api/clients
 		if path == "/api/clients" {
-			if r.Method == http.MethodGet {
+			if method == http.MethodGet {
 				clientHandler.GetClientList(w, r)
 			} else {
 				http.NotFound(w, r)
@@ -76,38 +94,49 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 
 		// Handle paths with /api/clients/ prefix
-		if len(path) > len("/api/clients/") {
-			suffix := path[len("/api/clients/"):]
+		prefixLen := len("/api/clients/")
+		if len(path) > prefixLen {
+			suffix := path[prefixLen:]
+			logMsg = fmt.Sprintf("DEBUG: Extracted suffix: '%s' (path: '%s')", suffix, path)
+			log.Printf(logMsg)
+			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 			
 			switch suffix {
 			case "active":
-				if r.Method == http.MethodGet {
+				if method == http.MethodGet {
 					clientHandler.GetActiveClients(w, r)
 				} else {
 					http.NotFound(w, r)
 				}
 				return
 			case "inactive":
-				if r.Method == http.MethodGet {
+				if method == http.MethodGet {
 					clientHandler.GetInactiveClients(w, r)
 				} else {
 					http.NotFound(w, r)
 				}
 				return
 			case "add":
-				log.Printf("DEBUG: /api/clients/add matched - Method: %s", r.Method)
-				if r.Method == http.MethodPost {
+				logMsg = fmt.Sprintf("DEBUG: /api/clients/add matched - Method: %s", method)
+				log.Printf(logMsg)
+				fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+				if method == http.MethodPost {
 					log.Printf("DEBUG: Calling CreateClient handler")
+					fmt.Fprintf(os.Stderr, "DEBUG: Calling CreateClient handler\n")
 					clientHandler.CreateClient(w, r)
 				} else {
-					log.Printf("DEBUG: Method not POST, returning 404. Method was: %s", r.Method)
+					logMsg = fmt.Sprintf("DEBUG: Method not POST, returning 404. Method was: %s", method)
+					log.Printf(logMsg)
+					fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 					http.NotFound(w, r)
 				}
 				return
 			default:
 				// Handle /api/clients/{id} - only GET allowed
-				if r.Method == http.MethodGet {
-					log.Printf("DEBUG: Handling client by ID: %s", suffix)
+				if method == http.MethodGet {
+					logMsg = fmt.Sprintf("DEBUG: Handling client by ID: %s", suffix)
+					log.Printf(logMsg)
+					fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 					r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, suffix))
 					clientHandler.GetClientByID(w, r)
 				} else {
@@ -118,6 +147,9 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 
 		// Fallback
+		logMsg = "DEBUG: No match found, returning 404"
+		log.Printf(logMsg)
+		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 		http.NotFound(w, r)
 	})
 
