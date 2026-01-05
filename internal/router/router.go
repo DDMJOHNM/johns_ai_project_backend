@@ -129,10 +129,6 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
-		clientHandler.AddClient(w, r)
-	})
-
 	port := getEnv("HTTP_PORT", "8080")
 	server := &http.Server{
 		Addr:         ":" + port,
