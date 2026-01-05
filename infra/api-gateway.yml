@@ -59,7 +59,7 @@ Resources:
       AutoDeploy: true
       AccessLogSettings:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","error":{"message":"$context.error.message","messageString":"$context.error.messageString","validationErrorString":"$context.error.validationErrorString"}}'
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","error":{"message":"$context.error.message","messageString":"$context.error.messageString"}}'
       DefaultRouteSettings:
         DetailedMetricsEnabled: true
         LoggingLevel: INFO
