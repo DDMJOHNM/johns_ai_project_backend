@@ -80,9 +80,12 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("DEBUG: /api/clients/add handler called - Method: %s, Path: %s", r.Method, r.URL.Path)
 		if r.Method == http.MethodPost {
+			log.Printf("DEBUG: Calling CreateClient handler")
 			clientHandler.CreateClient(w, r)
 		} else {
+			log.Printf("DEBUG: Method not POST, returning 404. Method was: %s", r.Method)
 			http.NotFound(w, r)
 		}
 	})
@@ -97,13 +100,16 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	})
 
 	// Handle /api/clients/{id} pattern (must be last)
-	// This catch-all route will match any /api/clients/* that isn't handled above
+	// Note: We use a pattern that won't conflict with specific routes above
+	// ServeMux matches by longest path, so /api/clients/add should match before this
 	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		log.Printf("DEBUG: Catch-all /api/clients/ handler called - Method: %s, Path: %s", r.Method, path)
 
-		// Check if this is one of our specific routes (shouldn't happen, but safety check)
+		// IMPORTANT: Check for specific routes FIRST - if ServeMux matched this instead of the specific route,
+		// we need to return 404 to prevent incorrect handling
 		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
-			// These should be handled by specific routes above, but if we get here, return 404
+			log.Printf("ERROR: Catch-all matched specific route %s - this should not happen! Returning 404", path)
 			http.NotFound(w, r)
 			return
 		}
