@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-// Client represents a client in the database
 type Client struct {
 	ID                    string `dynamodbav:"id" json:"id"`
 	FirstName             string `dynamodbav:"first_name" json:"first_name"`
@@ -32,7 +31,6 @@ type ClientRepository struct {
 	tableName string
 }
 
-// NewClientRepository creates a new client repository
 func NewClientRepository(client *dynamodb.Client) *ClientRepository {
 	return &ClientRepository{
 		client:    client,
@@ -40,7 +38,6 @@ func NewClientRepository(client *dynamodb.Client) *ClientRepository {
 	}
 }
 
-// GetClientList retrieves all clients from the database
 func (r *ClientRepository) GetClientList(ctx context.Context) ([]Client, error) {
 	input := &dynamodb.ScanInput{
 		TableName: aws.String(r.tableName),
@@ -63,7 +60,6 @@ func (r *ClientRepository) GetClientList(ctx context.Context) ([]Client, error) 
 	return clients, nil
 }
 
-// GetClientByID retrieves a single client by ID
 func (r *ClientRepository) GetClientByID(ctx context.Context, id string) (*Client, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(r.tableName),
@@ -89,7 +85,6 @@ func (r *ClientRepository) GetClientByID(ctx context.Context, id string) (*Clien
 	return &client, nil
 }
 
-// GetClientsByStatus retrieves clients filtered by status using the status-index GSI
 func (r *ClientRepository) GetClientsByStatus(ctx context.Context, status string) ([]Client, error) {
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(r.tableName),
@@ -120,7 +115,6 @@ func (r *ClientRepository) GetClientsByStatus(ctx context.Context, status string
 	return clients, nil
 }
 
-// CreateClient creates a new client in the database
 func (r *ClientRepository) CreateClient(ctx context.Context, client *Client) error {
 	item, err := attributevalue.MarshalMap(client)
 	if err != nil {
