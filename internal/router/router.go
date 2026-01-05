@@ -129,6 +129,10 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
+	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
+		clientHandler.AddClient(w, r)
+	})
+
 	port := getEnv("HTTP_PORT", "8080")
 	server := &http.Server{
 		Addr:         ":" + port,
@@ -155,6 +159,7 @@ func (r *Router) Start() error {
 	log.Printf("  GET /api/clients/active - Get active clients")
 	log.Printf("  GET /api/clients/inactive - Get inactive clients")
 	log.Printf("  GET /api/clients/{id} - Get client by ID")
+	log.Printf("  POST /api/clients/add - Add a new client")
 
 	if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server failed to start: %w", err)

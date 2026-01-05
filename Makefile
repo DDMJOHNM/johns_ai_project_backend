@@ -142,9 +142,9 @@ run-server:
 	@echo "Server will be available at http://localhost:$${HTTP_PORT:-8080}"
 	@echo "Press Ctrl+C to stop"
 	@if [ -f .env ]; then export $$(grep -v '^#' .env | xargs); fi; \
-	 DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)} \
-	 AWS_REGION=$${AWS_REGION:-$(AWS_REGION)} \
-	 HTTP_PORT=$${HTTP_PORT:-8080} \
+	 export DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)}; \
+	 export AWS_REGION=$${AWS_REGION:-$(AWS_REGION)}; \
+	 export HTTP_PORT=$${HTTP_PORT:-8080}; \
 	 go run ./cmd/server
 
 # Cleanup

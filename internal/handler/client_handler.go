@@ -20,14 +20,12 @@ type ClientHandler struct {
 	service *service.ClientService
 }
 
-// NewClientHandler creates a new client handler
 func NewClientHandler(service *service.ClientService) *ClientHandler {
 	return &ClientHandler{
 		service: service,
 	}
 }
 
-// GetClientList handles GET /api/clients - returns all clients
 func (h *ClientHandler) GetClientList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -43,19 +41,16 @@ func (h *ClientHandler) GetClientList(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-// GetClientByID handles GET /api/clients/:id - returns a single client
 func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Get ID from context (set by router) or from URL path
 	var id string
 	if ctxID := r.Context().Value(ClientIDKey); ctxID != nil {
 		id = ctxID.(string)
 	} else {
-		// Fallback: extract from path
 		path := r.URL.Path
 		if len(path) > len("/api/clients/") {
 			id = path[len("/api/clients/"):]
@@ -76,7 +71,6 @@ func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, client)
 }
 
-// GetActiveClients handles GET /api/clients/active - returns all active clients
 func (h *ClientHandler) GetActiveClients(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -92,7 +86,6 @@ func (h *ClientHandler) GetActiveClients(w http.ResponseWriter, r *http.Request)
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-// GetInactiveClients handles GET /api/clients/inactive - returns all inactive clients
 func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
