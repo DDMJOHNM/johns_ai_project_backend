@@ -109,11 +109,11 @@ Resources:
       Target: !Sub integrations/${ApiIntegration}
 
   # Create client route
-  ClientsAddRoute:
+  ClientAddRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref ApiGateway
-      RouteKey: POST /api/clients/add
+      RouteKey: POST /api/client/add
       Target: !Sub integrations/${ApiIntegrationPost}
 
   # Get active clients route

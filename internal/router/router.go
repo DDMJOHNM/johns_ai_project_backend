@@ -60,97 +60,73 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	// API routes - handle /api/clients/* routes manually to avoid ServeMux prefix matching issues
-	// Register both /api/clients (exact) and /api/clients/ (prefix) to catch all variations
-	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		method := r.Method
+	// API routes
+	// IMPORTANT: More specific routes must be registered BEFORE less specific ones
+	// because Go's ServeMux matches by longest prefix
 
-		// Exact match: GET /api/clients (no trailing slash)
-		if path == "/api/clients" && method == http.MethodGet {
-			clientHandler.GetClientList(w, r)
-			return
+	// Specific routes first
+	mux.HandleFunc("/api/clients/active", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			clientHandler.GetActiveClients(w, r)
+		} else {
+			http.NotFound(w, r)
 		}
-
-		// If not exact match, let the /api/clients/ handler deal with it
-		http.NotFound(w, r)
+	})
+	mux.HandleFunc("/api/clients/inactive", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			clientHandler.GetInactiveClients(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	mux.HandleFunc("/api/client/add", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			clientHandler.CreateClient(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
 	})
 
+	// Base route for GET /api/clients
+	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
+			clientHandler.GetClientList(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	// Handle /api/clients/{id} pattern (must be last)
+	// This catch-all route will match any /api/clients/* that isn't handled above
 	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		method := r.Method
-		logMsg := fmt.Sprintf("DEBUG: /api/clients handler - Method: %s, Path: '%s', PathLen: %d", method, path, len(path))
-		log.Printf(logMsg)
-		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 
-		// Exact match: GET /api/clients
-		if path == "/api/clients" {
-			if method == http.MethodGet {
-				clientHandler.GetClientList(w, r)
-			} else {
-				http.NotFound(w, r)
-			}
+		// Check if this is one of our specific routes (shouldn't happen, but safety check)
+		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
+			// These should be handled by specific routes above, but if we get here, return 404
+			http.NotFound(w, r)
 			return
 		}
 
-		// Handle paths with /api/clients/ prefix
-		prefixLen := len("/api/clients/")
-		if len(path) > prefixLen {
-			suffix := path[prefixLen:]
-			logMsg = fmt.Sprintf("DEBUG: Extracted suffix: '%s' (path: '%s')", suffix, path)
-			log.Printf(logMsg)
-			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-
-			switch suffix {
-			case "active":
-				if method == http.MethodGet {
-					clientHandler.GetActiveClients(w, r)
-				} else {
-					http.NotFound(w, r)
-				}
-				return
-			case "inactive":
-				if method == http.MethodGet {
-					clientHandler.GetInactiveClients(w, r)
-				} else {
-					http.NotFound(w, r)
-				}
-				return
-			case "add":
-				logMsg = fmt.Sprintf("DEBUG: /api/clients/add matched - Method: %s", method)
-				log.Printf(logMsg)
-				fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-				if method == http.MethodPost {
-					log.Printf("DEBUG: Calling CreateClient handler")
-					fmt.Fprintf(os.Stderr, "DEBUG: Calling CreateClient handler\n")
-					clientHandler.CreateClient(w, r)
-				} else {
-					logMsg = fmt.Sprintf("DEBUG: Method not POST, returning 404. Method was: %s", method)
-					log.Printf(logMsg)
-					fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-					http.NotFound(w, r)
-				}
-				return
-			default:
-				// Handle /api/clients/{id} - only GET allowed
-				if method == http.MethodGet {
-					logMsg = fmt.Sprintf("DEBUG: Handling client by ID: %s", suffix)
-					log.Printf(logMsg)
-					fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-					r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, suffix))
-					clientHandler.GetClientByID(w, r)
-				} else {
-					http.NotFound(w, r)
-				}
+		// Only handle GET requests for client by ID
+		if r.Method == http.MethodGet {
+			if path == "/api/clients" || path == "/api/clients/" {
+				http.NotFound(w, r)
 				return
 			}
+			// Remove /api/clients/ prefix to get the ID
+			id := path[len("/api/clients/"):]
+			if id == "" {
+				http.NotFound(w, r)
+				return
+			}
+			// Create a request with PathValue for the handler
+			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
+			clientHandler.GetClientByID(w, r)
+		} else {
+			// For non-GET requests, return 404 (POST /api/clients/add should be caught above)
+			http.NotFound(w, r)
 		}
-
-		// Fallback
-		logMsg = "DEBUG: No match found, returning 404"
-		log.Printf(logMsg)
-		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-		http.NotFound(w, r)
 	})
 
 	// Middleware to strip stage prefix (e.g., /prod) from API Gateway requests
