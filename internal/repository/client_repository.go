@@ -120,7 +120,8 @@ func (r *ClientRepository) GetClientsByStatus(ctx context.Context, status string
 	return clients, nil
 }
 
-func (r *ClientRepository) AddClient(ctx context.Context, client Client) error {
+// CreateClient creates a new client in the database
+func (r *ClientRepository) CreateClient(ctx context.Context, client *Client) error {
 	item, err := attributevalue.MarshalMap(client)
 	if err != nil {
 		return fmt.Errorf("failed to marshal client: %w", err)
@@ -133,7 +134,7 @@ func (r *ClientRepository) AddClient(ctx context.Context, client Client) error {
 
 	_, err = r.client.PutItem(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to put client item: %w", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	return nil

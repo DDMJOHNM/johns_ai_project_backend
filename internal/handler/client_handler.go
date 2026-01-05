@@ -5,10 +5,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jmason/john_ai_project/internal/repository"
 	"github.com/jmason/john_ai_project/internal/service"
 )
+
+// ContextKey is a custom type for context keys to avoid collisions
+type ContextKey string
+
+// ClientIDKey is the context key for client ID
+const ClientIDKey ContextKey = "client_id"
 
 // ClientHandler handles HTTP requests for client operations
 type ClientHandler struct {
@@ -43,7 +48,7 @@ func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var id string
-	if ctxID := r.Context().Value("client_id"); ctxID != nil {
+	if ctxID := r.Context().Value(ClientIDKey); ctxID != nil {
 		id = ctxID.(string)
 	} else {
 		path := r.URL.Path
@@ -96,29 +101,80 @@ func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Reques
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-func (h *ClientHandler) AddClient(w http.ResponseWriter, r *http.Request) {
+// CreateClientRequest represents the request body for creating a client
+type CreateClientRequest struct {
+	FirstName             string `json:"first_name"`
+	LastName              string `json:"last_name"`
+	Email                 string `json:"email"`
+	Phone                 string `json:"phone"`
+	DateOfBirth           string `json:"date_of_birth"`
+	Address               string `json:"address"`
+	EmergencyContactName  string `json:"emergency_contact_name"`
+	EmergencyContactPhone string `json:"emergency_contact_phone"`
+	Status                string `json:"status"`
+}
+
+// CreateClient handles POST /api/clients/add - creates a new client
+func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var newClient repository.Client
-	//populate the new client with the current timestamp
+	// Parse request body
+	var req CreateClientRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid request body",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Validate required fields
+	if req.FirstName == "" || req.LastName == "" || req.Email == "" {
+		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
+			Error:   "Missing required fields",
+			Message: "first_name, last_name, and email are required",
+		})
+		return
+	}
+
+	// Set default status if not provided
+	if req.Status == "" {
+		req.Status = "active"
+	}
+
+	// Generate client ID (you might want to use UUID or another ID generation strategy)
+	// For now, using a simple timestamp-based ID
+	clientID := "client-" + time.Now().Format("20060102150405")
+
+	// Create client object
 	now := time.Now().Format(time.RFC3339)
-	newClient.CreatedAt = now
-	newClient.UpdatedAt = now
-	newClient.Status = "active"
+	client := &repository.Client{
+		ID:                    clientID,
+		FirstName:             req.FirstName,
+		LastName:              req.LastName,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		DateOfBirth:           req.DateOfBirth,
+		Address:               req.Address,
+		EmergencyContactName:  req.EmergencyContactName,
+		EmergencyContactPhone: req.EmergencyContactPhone,
+		Status:                req.Status,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
 
-	if err := json.NewDecoder(r.Body).Decode(&newClient); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	// Create client via service
+	if err := h.service.CreateClient(r.Context(), client); err != nil {
+		RespondJSON(w, http.StatusInternalServerError, ErrorResponse{
+			Error:   "Failed to create client",
+			Message: err.Error(),
+		})
 		return
 	}
-	newClient.ID = uuid.New().String()
-	err := h.service.AddClient(r.Context(), &newClient)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
-	RespondJSON(w, http.StatusCreated, "Client added successfully")
+	// Return created client
+	RespondJSON(w, http.StatusCreated, client)
 }
