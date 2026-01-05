@@ -62,22 +62,15 @@ Resources:
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","error":{"message":"$context.error.message","messageString":"$context.error.messageString"}}'
       DefaultRouteSettings:
         DetailedMetricsEnabled: true
-        LoggingLevel: INFO
-        DataTraceEnabled: true
+        # Note: LoggingLevel and DataTraceEnabled are not supported for HTTP APIs (only REST APIs)
 
   # CloudWatch Log Group for API Gateway Access Logs
   # Note: Keeping original name to avoid breaking existing deployments
+  # Note: HTTP APIs (API Gateway V2) only support access logs, not execution logs
   ApiGatewayLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/apigateway/${ApiGateway}
-      RetentionInDays: 7
-  
-  # CloudWatch Log Group for API Gateway Execution Logs (optional, for detailed debugging)
-  ApiGatewayExecutionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/apigateway/${ApiGateway}/execution
       RetentionInDays: 7
 
   # Integration with backend server (GET)
