@@ -65,17 +65,17 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		method := r.Method
-		
+
 		// Exact match: GET /api/clients (no trailing slash)
 		if path == "/api/clients" && method == http.MethodGet {
 			clientHandler.GetClientList(w, r)
 			return
 		}
-		
+
 		// If not exact match, let the /api/clients/ handler deal with it
 		http.NotFound(w, r)
 	})
-	
+
 	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		method := r.Method
@@ -100,7 +100,7 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			logMsg = fmt.Sprintf("DEBUG: Extracted suffix: '%s' (path: '%s')", suffix, path)
 			log.Printf(logMsg)
 			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
-			
+
 			switch suffix {
 			case "active":
 				if method == http.MethodGet {
