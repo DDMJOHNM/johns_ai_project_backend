@@ -9,13 +9,10 @@ import (
 	"github.com/jmason/john_ai_project/internal/service"
 )
 
-// ContextKey is a custom type for context keys to avoid collisions
 type ContextKey string
 
-// ClientIDKey is the context key for client ID
 const ClientIDKey ContextKey = "client_id"
 
-// ClientHandler handles HTTP requests for client operations
 type ClientHandler struct {
 	service *service.ClientService
 }
@@ -101,7 +98,6 @@ func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Reques
 	RespondJSON(w, http.StatusOK, clients)
 }
 
-// CreateClientRequest represents the request body for creating a client
 type CreateClientRequest struct {
 	FirstName             string `json:"first_name"`
 	LastName              string `json:"last_name"`
@@ -114,14 +110,12 @@ type CreateClientRequest struct {
 	Status                string `json:"status"`
 }
 
-// CreateClient handles POST /api/client/add - creates a new client
 func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Parse request body
 	var req CreateClientRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
@@ -132,6 +126,7 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate required fields
+	//TODO: Add validator
 	if req.FirstName == "" || req.LastName == "" || req.Email == "" {
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
 			Error:   "Missing required fields",
@@ -145,8 +140,7 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		req.Status = "active"
 	}
 
-	// Generate client ID (you might want to use UUID or another ID generation strategy)
-	// For now, using a simple timestamp-based ID
+	// TODO: UseGoogle UUID v4
 	clientID := "client-" + time.Now().Format("20060102150405")
 
 	// Create client object
@@ -166,7 +160,6 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:             now,
 	}
 
-	// Create client via service
 	if err := h.service.CreateClient(r.Context(), client); err != nil {
 		RespondJSON(w, http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to create client",
@@ -175,6 +168,5 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return created client
 	RespondJSON(w, http.StatusCreated, client)
 }

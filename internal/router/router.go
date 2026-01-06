@@ -25,20 +25,16 @@ type Router struct {
 	cloudWatchLog *logger.CloudWatchLogger
 }
 
-// NewRouter creates a new router with all routes configured
 func NewRouter(ctx context.Context) (*Router, error) {
-	// Create DynamoDB connection
 	dbClient, err := db.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DB client: %w", err)
 	}
 
-	// Test connection
 	if err := dbClient.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping DynamoDB: %w", err)
 	}
 
-	// Create CloudWatch logger (optional - will work even if AWS credentials aren't available)
 	var cwLogger *logger.CloudWatchLogger
 	logGroupName := getEnv("CLOUDWATCH_LOG_GROUP", "/aws/ec2/john-ai-backend")
 	logStreamName := getEnv("CLOUDWATCH_LOG_STREAM", "api-server")
@@ -46,22 +42,13 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	cwLogger, err = logger.NewCloudWatchLogger(ctx, logGroupName, logStreamName)
 	if err != nil {
 		log.Printf("Warning: CloudWatch logging not available: %v", err)
-		// Continue anyway - local logging will still work
 	}
 
-	// Create repository
 	clientRepo := repository.NewClientRepository(dbClient.DynamoDB)
-
-	// Create service
 	clientService := service.NewClientService(clientRepo)
-
-	// Create handler
 	clientHandler := handler.NewClientHandler(clientService)
 
-	// Create router
 	mux := http.NewServeMux()
-
-	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			handler.RespondJSON(w, http.StatusOK, handler.HealthResponse{
@@ -77,7 +64,6 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// IMPORTANT: More specific routes must be registered BEFORE less specific ones
 	// because Go's ServeMux matches by longest prefix
 
-	// Specific routes first (must be registered before catch-all /api/clients/)
 	mux.HandleFunc("/api/clients/active", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			clientHandler.GetActiveClients(w, r)
@@ -183,7 +169,6 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		// Wrap response writer to capture status code
 		wrapped := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 
-		// Call the actual handler
 		mux.ServeHTTP(wrapped, r)
 
 		// Log the request
@@ -213,7 +198,6 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	}, nil
 }
 
-// Start starts the HTTP server
 func (r *Router) Start() error {
 	log.Printf("Starting server on %s", r.server.Addr)
 	log.Printf("Available endpoints:")
@@ -230,13 +214,10 @@ func (r *Router) Start() error {
 	return nil
 }
 
-// StartWithGracefulShutdown starts the server with graceful shutdown
 func (r *Router) StartWithGracefulShutdown() error {
-	// Channel to listen for interrupt or terminate signal
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	// Start server in a goroutine
 	go func() {
 		if err := r.Start(); err != nil {
 			log.Fatalf("Server failed: %v", err)

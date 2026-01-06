@@ -11,15 +11,11 @@ import (
 	"time"
 )
 
-// CloudWatchLogger handles logging to CloudWatch Logs
-// For now, this is a simple wrapper that logs to stdout
-// In production, this would use the AWS CloudWatch Logs API
 type CloudWatchLogger struct {
 	logGroupName  string
 	logStreamName string
 }
 
-// NewCloudWatchLogger creates a new CloudWatch logger
 func NewCloudWatchLogger(ctx context.Context, logGroupName, logStreamName string) (*CloudWatchLogger, error) {
 	// Ensure we have a base stream name
 	if strings.TrimSpace(logStreamName) == "" {

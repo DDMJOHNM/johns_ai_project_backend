@@ -7,19 +7,16 @@ import (
 	"github.com/jmason/john_ai_project/internal/repository"
 )
 
-// ClientService handles business logic for client operations
 type ClientService struct {
 	repo *repository.ClientRepository
 }
 
-// NewClientService creates a new client service
 func NewClientService(repo *repository.ClientRepository) *ClientService {
 	return &ClientService{
 		repo: repo,
 	}
 }
 
-// GetClientList retrieves all clients
 func (s *ClientService) GetClientList(ctx context.Context) ([]repository.Client, error) {
 	clients, err := s.repo.GetClientList(ctx)
 	if err != nil {
@@ -28,7 +25,6 @@ func (s *ClientService) GetClientList(ctx context.Context) ([]repository.Client,
 	return clients, nil
 }
 
-// GetClientByID retrieves a single client by ID
 func (s *ClientService) GetClientByID(ctx context.Context, id string) (*repository.Client, error) {
 	client, err := s.repo.GetClientByID(ctx, id)
 	if err != nil {
@@ -37,7 +33,6 @@ func (s *ClientService) GetClientByID(ctx context.Context, id string) (*reposito
 	return client, nil
 }
 
-// GetActiveClients retrieves all active clients
 func (s *ClientService) GetActiveClients(ctx context.Context) ([]repository.Client, error) {
 	clients, err := s.repo.GetClientsByStatus(ctx, "active")
 	if err != nil {
@@ -46,7 +41,6 @@ func (s *ClientService) GetActiveClients(ctx context.Context) ([]repository.Clie
 	return clients, nil
 }
 
-// GetInactiveClients retrieves all inactive clients
 func (s *ClientService) GetInactiveClients(ctx context.Context) ([]repository.Client, error) {
 	clients, err := s.repo.GetClientsByStatus(ctx, "inactive")
 	if err != nil {
@@ -55,7 +49,6 @@ func (s *ClientService) GetInactiveClients(ctx context.Context) ([]repository.Cl
 	return clients, nil
 }
 
-// CreateClient creates a new client
 func (s *ClientService) CreateClient(ctx context.Context, client *repository.Client) error {
 	if err := s.repo.CreateClient(ctx, client); err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
