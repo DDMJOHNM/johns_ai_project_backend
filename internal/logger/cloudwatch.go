@@ -3,7 +3,11 @@ package logger
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -17,10 +21,52 @@ type CloudWatchLogger struct {
 
 // NewCloudWatchLogger creates a new CloudWatch logger
 func NewCloudWatchLogger(ctx context.Context, logGroupName, logStreamName string) (*CloudWatchLogger, error) {
-	log.Printf("CloudWatch logger initialized for group: %s, stream: %s", logGroupName, logStreamName)
+	// Ensure we have a base stream name
+	if strings.TrimSpace(logStreamName) == "" {
+		logStreamName = "api-server"
+	}
+
+	// Attempt to enrich stream name with EC2 instance-id when available
+	instanceID := ""
+	// Use a short timeout for metadata lookup so local dev won't hang
+	mdCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(mdCtx, http.MethodGet, "http://169.254.169.254/latest/meta-data/instance-id", nil)
+	if err == nil {
+		client := &http.Client{Timeout: 750 * time.Millisecond}
+		resp, err := client.Do(req)
+		if err == nil && resp != nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				if body, err := io.ReadAll(resp.Body); err == nil {
+					instanceID = strings.TrimSpace(string(body))
+				}
+			}
+		}
+	}
+
+	// If we couldn't get instance-id, fall back to hostname (useful for local dev)
+	if instanceID == "" {
+		if hn, err := os.Hostname(); err == nil {
+			// shorten hostname if it contains dots
+			if idx := strings.IndexByte(hn, '.'); idx > 0 {
+				hn = hn[:idx]
+			}
+			instanceID = hn
+		}
+	}
+
+	// Compose final stream name, avoid duplicating instance id if already present
+	finalStream := logStreamName
+	if instanceID != "" && !strings.Contains(logStreamName, instanceID) {
+		finalStream = fmt.Sprintf("%s-%s", logStreamName, instanceID)
+	}
+
+	log.Printf("CloudWatch logger initialized for group: %s, stream: %s", logGroupName, finalStream)
 	return &CloudWatchLogger{
 		logGroupName:  logGroupName,
-		logStreamName: logStreamName,
+		logStreamName: finalStream,
 	}, nil
 }
 
