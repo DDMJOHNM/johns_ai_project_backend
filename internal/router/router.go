@@ -145,16 +145,24 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// Middleware to log requests and strip stage prefix
 	logAndStripHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		originalPath := r.URL.Path
 		path := r.URL.Path
 		method := r.Method
+
+		// Log immediately to ensure we see all requests
+		log.Printf("[MIDDLEWARE] Incoming request: %s %s (original: %s)", method, path, originalPath)
+		fmt.Fprintf(os.Stderr, "[MIDDLEWARE] Incoming request: %s %s (original: %s)\n", method, path, originalPath)
 
 		// Remove common stage prefixes if present
 		if len(path) > 5 && path[:5] == "/prod" && path[5] == '/' {
 			r.URL.Path = path[5:]
+			log.Printf("[MIDDLEWARE] Stripped /prod prefix, new path: %s", r.URL.Path)
 		} else if len(path) > 4 && path[:4] == "/dev" && path[4] == '/' {
 			r.URL.Path = path[4:]
+			log.Printf("[MIDDLEWARE] Stripped /dev prefix, new path: %s", r.URL.Path)
 		} else if len(path) > 8 && path[:8] == "/staging" && path[8] == '/' {
 			r.URL.Path = path[8:]
+			log.Printf("[MIDDLEWARE] Stripped /staging prefix, new path: %s", r.URL.Path)
 		}
 
 		// Wrap response writer to capture status code
@@ -165,12 +173,12 @@ func NewRouter(ctx context.Context) (*Router, error) {
 
 		// Log the request
 		duration := time.Since(start)
+		log.Printf("[MIDDLEWARE] %s %s | Status: %d | Duration: %dms | Remote: %s", method, r.URL.Path, wrapped.statusCode, duration.Milliseconds(), r.RemoteAddr)
+		fmt.Fprintf(os.Stderr, "[MIDDLEWARE] %s %s | Status: %d | Duration: %dms | Remote: %s\n", method, r.URL.Path, wrapped.statusCode, duration.Milliseconds(), r.RemoteAddr)
+
 		if cwLogger != nil {
 			go cwLogger.LogRequest(r.Context(), method, r.URL.Path, wrapped.statusCode, duration, r.RemoteAddr)
 		}
-
-		// Also log locally
-		log.Printf("%s %s | Status: %d | Duration: %dms | Remote: %s", method, r.URL.Path, wrapped.statusCode, duration.Milliseconds(), r.RemoteAddr)
 	})
 
 	port := getEnv("HTTP_PORT", "8080")
