@@ -7,6 +7,8 @@ import (
 	"github.com/jmason/john_ai_project/internal/repository"
 )
 
+//TODO:tests for this service
+
 type ClientService struct {
 	repo *repository.ClientRepository
 }

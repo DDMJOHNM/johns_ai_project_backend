@@ -60,6 +60,7 @@ func (r *ClientRepository) GetClientList(ctx context.Context) ([]Client, error) 
 	return clients, nil
 }
 
+// TODO: parameter validation for the id and return an error if the id is not a valid uuid
 func (r *ClientRepository) GetClientByID(ctx context.Context, id string) (*Client, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(r.tableName),
