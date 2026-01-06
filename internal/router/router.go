@@ -12,15 +12,17 @@ import (
 
 	"github.com/jmason/john_ai_project/internal/db"
 	"github.com/jmason/john_ai_project/internal/handler"
+	"github.com/jmason/john_ai_project/internal/logger"
 	"github.com/jmason/john_ai_project/internal/repository"
 	"github.com/jmason/john_ai_project/internal/service"
 )
 
 // Router handles HTTP routing
 type Router struct {
-	mux     *http.ServeMux
-	server  *http.Server
-	handler *handler.ClientHandler
+	mux            *http.ServeMux
+	server         *http.Server
+	handler        *handler.ClientHandler
+	cloudWatchLog  *logger.CloudWatchLogger
 }
 
 // NewRouter creates a new router with all routes configured
@@ -34,6 +36,17 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// Test connection
 	if err := dbClient.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping DynamoDB: %w", err)
+	}
+
+	// Create CloudWatch logger (optional - will work even if AWS credentials aren't available)
+	var cwLogger *logger.CloudWatchLogger
+	logGroupName := getEnv("CLOUDWATCH_LOG_GROUP", "/aws/ec2/john-ai-backend")
+	logStreamName := getEnv("CLOUDWATCH_LOG_STREAM", "api-server")
+	
+	cwLogger, err = logger.NewCloudWatchLogger(ctx, logGroupName, logStreamName)
+	if err != nil {
+		log.Printf("Warning: CloudWatch logging not available: %v", err)
+		// Continue anyway - local logging will still work
 	}
 
 	// Create repository
@@ -129,9 +142,11 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	// Middleware to strip stage prefix (e.g., /prod) from API Gateway requests
-	stripStagePrefixHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Middleware to log requests and strip stage prefix
+	logAndStripHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		path := r.URL.Path
+		method := r.Method
 
 		// Remove common stage prefixes if present
 		if len(path) > 5 && path[:5] == "/prod" && path[5] == '/' {
@@ -142,22 +157,36 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			r.URL.Path = path[8:]
 		}
 
-		mux.ServeHTTP(w, r)
+		// Wrap response writer to capture status code
+		wrapped := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
+
+		// Call the actual handler
+		mux.ServeHTTP(wrapped, r)
+
+		// Log the request
+		duration := time.Since(start)
+		if cwLogger != nil {
+			go cwLogger.LogRequest(r.Context(), method, r.URL.Path, wrapped.statusCode, duration, r.RemoteAddr)
+		}
+
+		// Also log locally
+		log.Printf("%s %s | Status: %d | Duration: %dms | Remote: %s", method, r.URL.Path, wrapped.statusCode, duration.Milliseconds(), r.RemoteAddr)
 	})
 
 	port := getEnv("HTTP_PORT", "8080")
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      stripStagePrefixHandler,
+		Handler:      logAndStripHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	return &Router{
-		mux:     mux,
-		server:  server,
-		handler: clientHandler,
+		mux:           mux,
+		server:        server,
+		handler:       clientHandler,
+		cloudWatchLog: cwLogger,
 	}, nil
 }
 
@@ -214,3 +243,15 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// responseWriterWrapper wraps http.ResponseWriter to capture status code
+type responseWriterWrapper struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *responseWriterWrapper) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
