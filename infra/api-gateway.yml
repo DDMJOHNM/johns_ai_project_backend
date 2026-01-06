@@ -84,6 +84,8 @@ Resources:
       PayloadFormatVersion: "1.0"
       ConnectionType: INTERNET
       TimeoutInMillis: 30000
+      RequestParameters:
+        overwrite:path: "$request.path"
 
   # Integration with backend server (POST)
   ApiIntegrationPost:
@@ -96,6 +98,8 @@ Resources:
       PayloadFormatVersion: "1.0"
       ConnectionType: INTERNET
       TimeoutInMillis: 30000
+      RequestParameters:
+        overwrite:path: "$request.path"
 
   # Health check route
   HealthRoute:
