@@ -26,11 +26,13 @@ echo ""
 
 if [ "$LOG_TYPE" = "api-gateway" ] || [ "$LOG_TYPE" = "all" ]; then
   if [ -n "$API_ID" ]; then
+    LOG_GROUP="/aws/apigateway/$API_ID"
     echo "📡 API Gateway Logs (Access Logs):"
-    echo "Log Group: /aws/apigateway/$API_ID/access"
+    echo "Log Group: $LOG_GROUP"
+    echo "API ID: $API_ID"
     echo ""
-    echo "Recent access logs:"
-    aws logs tail "/aws/apigateway/$API_ID/access" \
+    echo "Recent access logs (last 10 minutes):"
+    aws logs tail "$LOG_GROUP" \
       --region $AWS_REGION \
       --since 10m \
       --format short \
@@ -69,7 +71,8 @@ echo "  $0 all         # View all logs (default)"
 echo ""
 echo "To view logs in AWS Console:"
 if [ -n "$API_ID" ]; then
-  echo "  API Gateway: https://console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/%2Faws%2Fapigateway%2F$API_ID"
+  LOG_GROUP_ENCODED=$(echo "/aws/apigateway/$API_ID" | sed 's/\//%2F/g')
+  echo "  API Gateway: https://console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/$LOG_GROUP_ENCODED"
 fi
 if [ -n "$INSTANCE_ID" ]; then
   echo "  EC2 Backend: https://console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/%2Faws%2Fec2%2Fjohn-ai-backend%2Fapplication"
