@@ -1,0 +1,16 @@
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/john-ai-backend.log",
+            "log_group_name": "/aws/ec2/john-ai-backend",
+            "log_stream_name": "api-server-{instance_id}",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  }
+}
