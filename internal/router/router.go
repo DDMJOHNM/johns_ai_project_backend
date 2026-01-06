@@ -19,10 +19,10 @@ import (
 
 // Router handles HTTP routing
 type Router struct {
-	mux            *http.ServeMux
-	server         *http.Server
-	handler        *handler.ClientHandler
-	cloudWatchLog  *logger.CloudWatchLogger
+	mux           *http.ServeMux
+	server        *http.Server
+	handler       *handler.ClientHandler
+	cloudWatchLog *logger.CloudWatchLogger
 }
 
 // NewRouter creates a new router with all routes configured
@@ -42,7 +42,7 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	var cwLogger *logger.CloudWatchLogger
 	logGroupName := getEnv("CLOUDWATCH_LOG_GROUP", "/aws/ec2/john-ai-backend")
 	logStreamName := getEnv("CLOUDWATCH_LOG_STREAM", "api-server")
-	
+
 	cwLogger, err = logger.NewCloudWatchLogger(ctx, logGroupName, logStreamName)
 	if err != nil {
 		log.Printf("Warning: CloudWatch logging not available: %v", err)
@@ -254,4 +254,3 @@ func (w *responseWriterWrapper) WriteHeader(code int) {
 	w.statusCode = code
 	w.ResponseWriter.WriteHeader(code)
 }
-
