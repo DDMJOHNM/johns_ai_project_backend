@@ -14,6 +14,9 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      id-token: write
+      contents: read
     
     steps:
       - name: Checkout code
@@ -44,9 +47,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          audience: sts.amazonaws.com
 
       - name: Validate CloudFormation template
         run: aws cloudformation validate-template --template-body file://infra/dynamodb-table.yml
@@ -68,13 +71,10 @@ jobs:
 
       - name: Run seeder
         env:
-          AWS_REGION: us-east-1
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
         run: |
           echo "AWS_REGION: $AWS_REGION"
-          echo "AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
-          echo "AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+          echo "Running database seeder..."
           ./bin/seed
 
       - name: Validate EC2 Backend CloudFormation template
