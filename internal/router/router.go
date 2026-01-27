@@ -111,17 +111,15 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	}))
 
 	mux.HandleFunc("/api/clients/add", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		logMsg := fmt.Sprintf("[ROUTER] /api/clients/add handler - Method: %s, Path: %s", r.Method, r.URL.Path)
-		log.Printf(logMsg)
-		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+		log.Printf("[ROUTER] /api/clients/add handler - Method: %s, Path: %s", r.Method, r.URL.Path)
+		fmt.Fprintf(os.Stderr, "[ROUTER] /api/clients/add handler - Method: %s, Path: %s\n", r.Method, r.URL.Path)
 		if r.Method == http.MethodPost {
 			log.Printf("[ROUTER] Calling CreateClient handler")
 			fmt.Fprintf(os.Stderr, "[ROUTER] Calling CreateClient handler\n")
 			clientHandler.CreateClient(w, r)
 		} else {
-			logMsg := fmt.Sprintf("[ROUTER] Method not POST for /api/clients/add: %s", r.Method)
-			log.Printf(logMsg)
-			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+			log.Printf("[ROUTER] Method not POST for /api/clients/add: %s", r.Method)
+			fmt.Fprintf(os.Stderr, "[ROUTER] Method not POST for /api/clients/add: %s\n", r.Method)
 			http.NotFound(w, r)
 		}
 	}))
@@ -140,15 +138,13 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		path := r.URL.Path
 		method := r.Method
 
-		logMsg := fmt.Sprintf("[ROUTER] Catch-all /api/clients/ handler - Method: %s, Path: %s", method, path)
-		log.Printf(logMsg)
-		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+		log.Printf("[ROUTER] Catch-all /api/clients/ handler - Method: %s, Path: %s", method, path)
+		fmt.Fprintf(os.Stderr, "[ROUTER] Catch-all /api/clients/ handler - Method: %s, Path: %s\n", method, path)
 
 		// Check if this is one of our specific routes (shouldn't happen, but safety check)
 		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
-			logMsg := fmt.Sprintf("[ROUTER] Specific route %s matched in catch-all - returning 404", path)
-			log.Printf(logMsg)
-			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
+			log.Printf("[ROUTER] Specific route %s matched in catch-all - returning 404", path)
+			fmt.Fprintf(os.Stderr, "[ROUTER] Specific route %s matched in catch-all - returning 404\n", path)
 			http.NotFound(w, r)
 			return
 		}
