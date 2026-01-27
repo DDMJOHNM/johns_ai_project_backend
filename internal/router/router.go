@@ -47,18 +47,18 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	// Setup repositories
 	clientRepo := repository.NewClientRepository(dbClient.DynamoDB)
 	userRepo := repository.NewUserRepository(dbClient.DynamoDB)
-	
+
 	// Setup services
 	clientService := service.NewClientService(clientRepo)
 	jwtSecret := getEnv("JWT_SECRET", "your-secret-key-CHANGE-IN-PRODUCTION-via-env-var")
 	authService := service.NewAuthService(userRepo, jwtSecret)
-	
+
 	// Setup handlers
 	clientHandler := handler.NewClientHandler(clientService)
 	authHandler := handler.NewAuthHandler(authService)
 
 	mux := http.NewServeMux()
-	
+
 	// Public routes
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
