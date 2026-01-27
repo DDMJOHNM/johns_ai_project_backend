@@ -44,11 +44,22 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		log.Printf("Warning: CloudWatch logging not available: %v", err)
 	}
 
+	// Setup repositories
 	clientRepo := repository.NewClientRepository(dbClient.DynamoDB)
+	userRepo := repository.NewUserRepository(dbClient.DynamoDB)
+	
+	// Setup services
 	clientService := service.NewClientService(clientRepo)
+	jwtSecret := getEnv("JWT_SECRET", "your-secret-key-CHANGE-IN-PRODUCTION-via-env-var")
+	authService := service.NewAuthService(userRepo, jwtSecret)
+	
+	// Setup handlers
 	clientHandler := handler.NewClientHandler(clientService)
+	authHandler := handler.NewAuthHandler(authService)
 
 	mux := http.NewServeMux()
+	
+	// Public routes
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			handler.RespondJSON(w, http.StatusOK, handler.HealthResponse{
@@ -60,27 +71,46 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	// API routes
+	// Auth routes (public)
+	mux.HandleFunc("/api/auth/register", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			authHandler.Register(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			authHandler.Login(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	mux.HandleFunc("/api/auth/me", authHandler.AuthMiddleware(authHandler.Me))
+
+	// Protected API routes
 	// IMPORTANT: More specific routes must be registered BEFORE less specific ones
 	// because Go's ServeMux matches by longest prefix
 
-	mux.HandleFunc("/api/clients/active", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/clients/active", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			clientHandler.GetActiveClients(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
-	})
+	}))
 
-	mux.HandleFunc("/api/clients/inactive", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/clients/inactive", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			clientHandler.GetInactiveClients(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
-	})
+	}))
 
-	mux.HandleFunc("/api/clients/add", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/clients/add", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		logMsg := fmt.Sprintf("[ROUTER] /api/clients/add handler - Method: %s, Path: %s", r.Method, r.URL.Path)
 		log.Printf(logMsg)
 		fmt.Fprintf(os.Stderr, "%s\n", logMsg)
@@ -94,19 +124,19 @@ func NewRouter(ctx context.Context) (*Router, error) {
 			fmt.Fprintf(os.Stderr, "%s\n", logMsg)
 			http.NotFound(w, r)
 		}
-	})
+	}))
 
-	// Base route for GET /api/clients
-	mux.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
+	// Base route for GET /api/clients (protected)
+	mux.HandleFunc("/api/clients", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
 			clientHandler.GetClientList(w, r)
 		} else {
 			http.NotFound(w, r)
 		}
-	})
+	}))
 
-	// Catch-all route for /api/clients/{id}
-	mux.HandleFunc("/api/clients/", func(w http.ResponseWriter, r *http.Request) {
+	// Catch-all route for /api/clients/{id} (protected)
+	mux.HandleFunc("/api/clients/", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		method := r.Method
 
@@ -141,7 +171,7 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		} else {
 			http.NotFound(w, r)
 		}
-	})
+	}))
 
 	// Middleware to log requests and strip stage prefix
 	logAndStripHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -201,12 +231,17 @@ func NewRouter(ctx context.Context) (*Router, error) {
 func (r *Router) Start() error {
 	log.Printf("Starting server on %s", r.server.Addr)
 	log.Printf("Available endpoints:")
-	log.Printf("  GET /health - Health check")
-	log.Printf("  GET /api/clients - Get all clients")
-	log.Printf("  GET /api/clients/{id} - Get client by ID")
-	log.Printf("  GET /api/clients/active - Get active clients")
-	log.Printf("  GET /api/clients/inactive - Get inactive clients")
-	log.Printf("  POST /api/clients/add - Create a new client")
+	log.Printf("  Public:")
+	log.Printf("    GET  /health - Health check")
+	log.Printf("    POST /api/auth/register - Register new user")
+	log.Printf("    POST /api/auth/login - Login (returns JWT token)")
+	log.Printf("  Protected (requires Authorization: Bearer <token>):")
+	log.Printf("    GET  /api/auth/me - Get current user info")
+	log.Printf("    GET  /api/clients - Get all clients")
+	log.Printf("    GET  /api/clients/{id} - Get client by ID")
+	log.Printf("    GET  /api/clients/active - Get active clients")
+	log.Printf("    GET  /api/clients/inactive - Get inactive clients")
+	log.Printf("    POST /api/clients/add - Create a new client")
 
 	if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server failed to start: %w", err)
