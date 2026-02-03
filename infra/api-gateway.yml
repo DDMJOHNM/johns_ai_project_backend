@@ -150,6 +150,28 @@ Resources:
       RouteKey: GET /api/clients/{id}
       Target: !Sub integrations/${ApiIntegration}
 
+  # Auth Routes
+  AuthRegisterRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: POST /api/auth/register
+      Target: !Sub integrations/${ApiIntegrationPost}
+
+  AuthLoginRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: POST /api/auth/login
+      Target: !Sub integrations/${ApiIntegrationPost}
+
+  AuthMeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ApiGateway
+      RouteKey: GET /api/auth/me
+      Target: !Sub integrations/${ApiIntegration}
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
