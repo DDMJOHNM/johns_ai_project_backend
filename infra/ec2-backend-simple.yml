@@ -78,6 +78,15 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource: 'arn:aws:s3:::*'
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/john-ai-project/*'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -110,7 +119,7 @@ Resources:
           mkdir -p /opt/john-ai-project
           cd /opt/john-ai-project
           
-          # Create systemd service
+          # Create systemd service with JWT_SECRET from SSM Parameter Store
           cat > /etc/systemd/system/john-ai-backend.service <<EOF
           [Unit]
           Description=Johns AI Project Backend
@@ -120,7 +129,8 @@ Resources:
           Type=simple
           User=ec2-user
           WorkingDirectory=/opt/john-ai-project
-          ExecStart=/opt/john-ai-project/server
+          ExecStartPre=/bin/bash -c 'export JWT_SECRET=\$(aws ssm get-parameter --name /john-ai-project/jwt-secret --with-decryption --region ${AWS::Region} --query Parameter.Value --output text 2>/dev/null || echo "")'
+          ExecStart=/bin/bash -c 'export JWT_SECRET=\$(aws ssm get-parameter --name /john-ai-project/jwt-secret --with-decryption --region ${AWS::Region} --query Parameter.Value --output text) && /opt/john-ai-project/server'
           Restart=always
           RestartSec=10
           Environment="AWS_REGION=${AWS::Region}"

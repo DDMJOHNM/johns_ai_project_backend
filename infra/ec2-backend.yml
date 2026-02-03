@@ -184,6 +184,15 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:DeleteItem
                 Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/users'
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/john-ai-project/*'
 
   EC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -220,8 +229,8 @@ Resources:
           # Build the server
           go build -o bin/server ./cmd/server
           
-          # Create systemd service
-          cat > /etc/systemd/system/john-ai-backend.service <<'EOF'
+          # Create systemd service with JWT_SECRET from SSM Parameter Store
+          cat > /etc/systemd/system/john-ai-backend.service <<EOF
           [Unit]
           Description=Johns AI Project Backend
           After=network.target
@@ -230,11 +239,12 @@ Resources:
           Type=simple
           User=ec2-user
           WorkingDirectory=/opt/john-ai-project
-          ExecStart=/opt/john-ai-project/bin/server
+          ExecStartPre=/bin/bash -c 'export JWT_SECRET=\$(aws ssm get-parameter --name /john-ai-project/jwt-secret --with-decryption --region ${AWS::Region} --query Parameter.Value --output text 2>/dev/null || echo "")'
+          ExecStart=/bin/bash -c 'export JWT_SECRET=\$(aws ssm get-parameter --name /john-ai-project/jwt-secret --with-decryption --region ${AWS::Region} --query Parameter.Value --output text) && /opt/john-ai-project/bin/server'
           Restart=on-failure
           RestartSec=10
           Environment="AWS_REGION=${AWS::Region}"
-          Environment="PORT=${ServerPort}"
+          Environment="HTTP_PORT=${ServerPort}"
           
           [Install]
           WantedBy=multi-user.target

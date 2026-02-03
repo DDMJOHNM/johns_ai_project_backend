@@ -91,6 +91,7 @@ The server will be available at `http://localhost:8080`.
 - `DYNAMODB_ENDPOINT` - DynamoDB endpoint (default: http://localhost:8000)
 - `AWS_REGION` - AWS region (default: us-east-1)
 - `HTTP_PORT` - HTTP server port (default: 8080)
+- `JWT_SECRET` - Secret key for JWT token signing (required for authentication)
 - `BACKEND_URL` - Backend server URL for API Gateway deployment
 
 ## Environment Setup
@@ -116,6 +117,7 @@ The server will be available at `http://localhost:8080`.
    DYNAMODB_ENDPOINT=http://localhost:8000
    AWS_REGION=us-east-1
    HTTP_PORT=8080
+   JWT_SECRET=dev-secret-key-change-in-production
    ```
 
 4. **Start the development environment:**
@@ -141,6 +143,7 @@ The server will be available at `http://localhost:8080`.
 | `DYNAMODB_ENDPOINT` | DynamoDB endpoint URL | `http://localhost:8000` | No (for local) |
 | `AWS_REGION` | AWS region | `us-east-1` | Yes |
 | `HTTP_PORT` | HTTP server port | `8080` | No |
+| `JWT_SECRET` | JWT token signing secret | `dev-secret-key-...` | Yes (production) |
 | `AWS_ACCESS_KEY_ID` | AWS access key (production) | - | Yes (production) |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key (production) | - | Yes (production) |
 
@@ -156,13 +159,22 @@ The server will be available at `http://localhost:8080`.
    - Create IAM user/role with DynamoDB permissions
    - Attach policies: `AmazonDynamoDBFullAccess` (or custom policy)
 
-3. **Set Environment Variables:**
+3. **Set up JWT Secret (Required for Authentication):**
+   ```bash
+   # Use the automated setup script
+   ./scripts/setup-jwt-secret.sh
+   ```
+   
+   See [JWT Secret Setup Guide](docs/JWT_SECRET_SETUP.md) for detailed instructions.
+
+4. **Set Environment Variables:**
    ```bash
    # Remove DYNAMODB_ENDPOINT to use AWS endpoint
    export AWS_REGION=us-east-1
    export AWS_ACCESS_KEY_ID=your-access-key
    export AWS_SECRET_ACCESS_KEY=your-secret-key
    export HTTP_PORT=8080
+   # JWT_SECRET is automatically loaded from SSM Parameter Store on EC2
    ```
 
 ## Database Configuration
@@ -822,9 +834,31 @@ make docker-up
 7. **Use API Gateway** for production API access
 8. **Monitor CloudWatch logs** for API Gateway requests
 
+## Authentication
+
+The API uses JWT-based authentication for all client endpoints. See the following documentation:
+
+- **[Authentication Guide](docs/AUTHENTICATION.md)** - Complete authentication system documentation
+- **[JWT Secret Setup](docs/JWT_SECRET_SETUP.md)** - How to configure JWT_SECRET in AWS
+- **[Postman Setup](docs/POSTMAN_SETUP.md)** - Testing with Postman
+
+### Quick Start
+
+For local development:
+```bash
+export JWT_SECRET="dev-secret-key-change-in-production"
+make run-server
+```
+
+For production deployment:
+```bash
+./scripts/setup-jwt-secret.sh
+```
+
 ## Additional Resources
 
 - [AWS DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
 - [AWS API Gateway Documentation](https://docs.aws.amazon.com/apigateway/)
+- [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Go Environment Variables](https://golang.org/pkg/os/#Getenv)
