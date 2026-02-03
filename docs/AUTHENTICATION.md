@@ -304,20 +304,69 @@ export JWT_SECRET="dev-secret-key-change-in-production"
 ./bin/server
 ```
 
-**Production (EC2):**
+**Production (AWS EC2 with SSM Parameter Store):**
 
-Add to the systemd service file:
+The production deployment uses AWS Systems Manager Parameter Store to securely store and retrieve the JWT secret.
+
+**Step 1: Generate a secure JWT secret**
+```bash
+# Generate a secure 64-character random string
+openssl rand -base64 48
+```
+
+**Step 2: Store the secret in AWS SSM Parameter Store**
+```bash
+aws ssm put-parameter \
+  --name "/john-ai-project/jwt-secret" \
+  --value "YOUR_GENERATED_SECRET_HERE" \
+  --type "SecureString" \
+  --description "JWT secret for Johns AI Project authentication" \
+  --region us-east-1
+```
+
+**Step 3: Deploy the CloudFormation stack**
+
+The `infra/ec2-backend.yml` CloudFormation template automatically:
+- Grants the EC2 instance IAM permissions to read SSM parameters
+- Configures the systemd service to fetch JWT_SECRET from Parameter Store on startup
+- Injects the secret as an environment variable for the Go application
+
+```bash
+aws cloudformation create-stack \
+  --stack-name john-ai-backend \
+  --template-body file://infra/ec2-backend.yml \
+  --capabilities CAPABILITY_IAM \
+  --region us-east-1
+```
+
+**To update an existing parameter:**
+```bash
+aws ssm put-parameter \
+  --name "/john-ai-project/jwt-secret" \
+  --value "NEW_SECRET_HERE" \
+  --type "SecureString" \
+  --overwrite \
+  --region us-east-1
+
+# Restart the service on EC2 to pick up the new value
+sudo systemctl restart john-ai-backend
+```
+
+**To verify the parameter exists:**
+```bash
+aws ssm get-parameter \
+  --name "/john-ai-project/jwt-secret" \
+  --region us-east-1
+```
+
+**Alternative (Less Secure): Direct Environment Variable**
+
+If you prefer not to use SSM Parameter Store, you can add the secret directly to the systemd service file:
 ```ini
 Environment="JWT_SECRET=your-production-secret-key-here"
 ```
 
-Or set via SSM Parameter Store:
-```bash
-aws ssm put-parameter \
-  --name "/john-ai-project/jwt-secret" \
-  --value "your-production-secret-key-here" \
-  --type "SecureString"
-```
+⚠️ **Warning:** This is less secure as the secret will be visible in CloudFormation templates and EC2 UserData.
 
 ---
 

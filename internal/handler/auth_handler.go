@@ -28,7 +28,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Login    string `json:"login"`    // Can be email or username
+	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
@@ -47,7 +47,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate
+	// TODO: make a validation function for this
 	if req.Username == "" || req.Email == "" || req.Password == "" || req.FirstName == "" || req.LastName == "" {
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
 			Error:   "Missing required fields",
@@ -56,7 +56,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Basic password validation
 	if len(req.Password) < 8 {
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid password",
@@ -123,7 +122,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (set by middleware)
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok {
 		RespondJSON(w, http.StatusUnauthorized, ErrorResponse{
@@ -145,10 +143,8 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, user)
 }
 
-// AuthMiddleware protects routes by requiring a valid JWT token
 func (h *AuthHandler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get token from Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			RespondJSON(w, http.StatusUnauthorized, ErrorResponse{
@@ -158,7 +154,6 @@ func (h *AuthHandler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Extract token from "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			RespondJSON(w, http.StatusUnauthorized, ErrorResponse{
@@ -170,7 +165,6 @@ func (h *AuthHandler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		token := parts[1]
 
-		// Validate token
 		claims, err := h.authService.ValidateToken(token)
 		if err != nil {
 			RespondJSON(w, http.StatusUnauthorized, ErrorResponse{
@@ -180,15 +174,12 @@ func (h *AuthHandler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Add user info to context
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, "user_id", claims.UserID)
 		ctx = context.WithValue(ctx, "user_email", claims.Email)
 		ctx = context.WithValue(ctx, "user_username", claims.Username)
 		ctx = context.WithValue(ctx, "user_role", claims.Role)
 
-		// Call next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
-
