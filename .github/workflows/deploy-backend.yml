@@ -74,11 +74,18 @@ jobs:
               "sudo aws s3 cp s3://${{ env.S3_BUCKET }}/backend-deployments/server-latest /opt/john-ai-project/server",
               "sudo chmod +x /opt/john-ai-project/server",
               "sudo chown ec2-user:ec2-user /opt/john-ai-project/server",
+              "echo \"=== Testing binary directly ===\"",
+              "cd /opt/john-ai-project",
+              "export AWS_REGION=us-east-1",
+              "export HTTP_PORT=8080",
+              "export JWT_SECRET=$(aws ssm get-parameter --name /john-ai-project/jwt-secret --with-decryption --region us-east-1 --query Parameter.Value --output text)",
+              "timeout 5 sudo -u ec2-user /opt/john-ai-project/server 2>&1 || true",
+              "echo \"=== Starting service ===\"",
               "sudo systemctl start john-ai-backend.service",
               "sleep 5",
               "sudo systemctl status john-ai-backend.service --no-pager || true",
-              "echo \"=== Server Logs ===\"",
-              "sudo journalctl -u john-ai-backend.service -n 30 --no-pager || true"
+              "echo \"=== Application Logs ===\"",
+              "sudo journalctl -t john-ai-backend -n 50 --no-pager || true"
             ]' \
             --comment "Deploy backend version ${{ github.ref_name }}" \
             --output text \
