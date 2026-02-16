@@ -1,0 +1,22 @@
+FROM golang:1.24-alpine
+
+# Install Delve debugger
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+WORKDIR /app
+
+# Copy everything first
+COPY . .
+
+# Tidy dependencies and download
+RUN go mod tidy && go mod download
+
+# Build with debug symbols (no optimization, no stripping)
+RUN go build -gcflags="all=-N -l" -o ./server ./cmd/server
+
+# Expose application port and Delve debug port
+EXPOSE 8080 2345
+
+# Start Delve in exec mode with the pre-built binary
+CMD ["dlv", "exec", "./server", "--headless", "--listen=:2345", "--api-version=2", "--accept-multiclient", "--log"]
+

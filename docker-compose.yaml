@@ -17,6 +17,27 @@ services:
     # Healthcheck removed - DynamoDB Local doesn't include curl/nc
     # Container will be ready when it starts listening on port 8000
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.debug
+    container_name: john_ai_backend
+    ports:
+      - "8080:8080"  # Application port
+      - "2345:2345"  # Delve debugger port
+    environment:
+      - DYNAMODB_ENDPOINT=http://dynamodb:8000
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - JWT_SECRET=local-dev-secret-key-change-in-production
+    depends_on:
+      - dynamodb
+    security_opt:
+      - "apparmor=unconfined"  # Required for debugging
+    cap_add:
+      - SYS_PTRACE  # Required for debugging
+
 volumes:
   dynamodb_data:
 

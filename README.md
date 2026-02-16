@@ -56,6 +56,10 @@ The server will be available at `http://localhost:8080`.
 
 ## Available Commands
 
+### Debugging
+- `docker stop` - john_ai_backend
+
+
 ### Docker Commands
 - `make docker-up` - Start DynamoDB Local container
 - `make docker-down` - Stop DynamoDB Local container
