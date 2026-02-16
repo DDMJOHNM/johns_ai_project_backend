@@ -49,3 +49,5 @@ terraform/crash.log
 server
 *.exe
 bin/
+server
+bin/
