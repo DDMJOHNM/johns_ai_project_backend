@@ -1,6 +1,6 @@
 module github.com/jmason/john_ai_project
 
-go 1.24
+go 1.20
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.24.0
@@ -8,6 +8,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.12
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.12
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.6
+	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/google/uuid v1.6.0
+	golang.org/x/crypto v0.47.0
 )
 
 require (
@@ -23,8 +26,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.5 // indirect
 	github.com/aws/smithy-go v1.19.0 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
 )
