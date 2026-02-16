@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -73,32 +74,45 @@ func (s *AuthService) Register(ctx context.Context, username, email, password, f
 }
 
 func (s *AuthService) Login(ctx context.Context, usernameOrEmail, password string) (string, *repository.User, error) {
+	log.Printf("[AUTH] Login attempt for: %s", usernameOrEmail)
+	
 	// Try to get user by email first
 	user, err := s.userRepo.GetUserByEmail(ctx, usernameOrEmail)
 	if err != nil {
+		log.Printf("[AUTH] User not found by email, trying username...")
 		// If not found by email, try username
 		user, err = s.userRepo.GetUserByUsername(ctx, usernameOrEmail)
 		if err != nil {
+			log.Printf("[AUTH] User not found by username either: %v", err)
 			return "", nil, fmt.Errorf("invalid credentials")
 		}
+		log.Printf("[AUTH] User found by username: %s", user.Username)
+	} else {
+		log.Printf("[AUTH] User found by email: %s", user.Email)
 	}
 
 	// Check if user is active
 	if !user.IsActive {
+		log.Printf("[AUTH] Account is disabled for user: %s", user.Username)
 		return "", nil, fmt.Errorf("account is disabled")
 	}
 
+	log.Printf("[AUTH] Comparing password hash...")
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		log.Printf("[AUTH] Password verification failed: %v", err)
 		return "", nil, fmt.Errorf("invalid credentials")
 	}
 
+	log.Printf("[AUTH] Password verified successfully")
 	// Generate JWT token
 	token, err := s.GenerateToken(user)
 	if err != nil {
+		log.Printf("[AUTH] Failed to generate token: %v", err)
 		return "", nil, err
 	}
 
+	log.Printf("[AUTH] Login successful for user: %s", user.Username)
 	return token, user, nil
 }
 
