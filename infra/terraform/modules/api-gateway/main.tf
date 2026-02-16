@@ -62,6 +62,11 @@ resource "aws_apigatewayv2_stage" "prod" {
   name        = var.stage_name
   auto_deploy = true
 
+  default_route_settings {
+    throttling_burst_limit = 5000
+    throttling_rate_limit  = 2000
+  }
+
   access_log_settings {
     destination_arn = var.cloudwatch_log_group_arn
     format = jsonencode({
