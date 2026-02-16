@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.20'
   AWS_REGION: 'us-east-1'
   EC2_INSTANCE_ID: 'i-0d3e8d15e57ec16fc'
   S3_BUCKET: 'duskaotearoa-terraform-state'
