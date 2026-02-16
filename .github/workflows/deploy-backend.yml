@@ -70,13 +70,15 @@ jobs:
             --instance-ids ${{ env.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
-              "sudo systemctl stop john-ai-backend.service",
+              "sudo systemctl stop john-ai-backend.service || true",
               "sudo aws s3 cp s3://${{ env.S3_BUCKET }}/backend-deployments/server-latest /opt/john-ai-project/server",
               "sudo chmod +x /opt/john-ai-project/server",
               "sudo chown ec2-user:ec2-user /opt/john-ai-project/server",
               "sudo systemctl start john-ai-backend.service",
               "sleep 5",
-              "sudo systemctl status john-ai-backend.service"
+              "sudo systemctl status john-ai-backend.service --no-pager || true",
+              "echo \"=== Server Logs ===\"",
+              "sudo journalctl -u john-ai-backend.service -n 30 --no-pager || true"
             ]' \
             --comment "Deploy backend version ${{ github.ref_name }}" \
             --output text \
@@ -87,14 +89,38 @@ jobs:
           echo "Waiting for deployment command: $COMMAND_ID"
           aws ssm wait command-executed \
             --command-id $COMMAND_ID \
-            --instance-id ${{ env.EC2_INSTANCE_ID }}
+            --instance-id ${{ env.EC2_INSTANCE_ID }} || true
           
-          # Check command status
+          # Get full command output
+          echo "=== Deployment Output ==="
           aws ssm get-command-invocation \
             --command-id $COMMAND_ID \
             --instance-id ${{ env.EC2_INSTANCE_ID }} \
-            --query "Status" \
+            --query "StandardOutputContent" \
             --output text
+          
+          # Check if service is running
+          STATUS=$(aws ssm send-command \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["systemctl is-active john-ai-backend.service"]' \
+            --output text \
+            --query "Command.CommandId")
+          
+          sleep 5
+          
+          SERVICE_STATUS=$(aws ssm get-command-invocation \
+            --command-id $STATUS \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --query "StandardOutputContent" \
+            --output text)
+          
+          if [ "$SERVICE_STATUS" != "active" ]; then
+            echo "❌ Service failed to start"
+            exit 1
+          fi
+          
+          echo "✅ Service is running"
       
       - name: Health check
         if: startsWith(github.ref, 'refs/tags/v')
