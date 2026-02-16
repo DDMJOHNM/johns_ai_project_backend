@@ -28,31 +28,10 @@ resource "aws_apigatewayv2_integration" "backend" {
   payload_format_version = "1.0"
 }
 
-# Default route - catch all
+# Default route - catch all requests
 resource "aws_apigatewayv2_route" "default" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.backend.id}"
-}
-
-# Specific route for /health
-resource "aws_apigatewayv2_route" "health" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "GET /health"
-  target    = "integrations/${aws_apigatewayv2_integration.backend.id}"
-}
-
-# Route for auth endpoints
-resource "aws_apigatewayv2_route" "auth" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "ANY /api/auth/{proxy+}"
-  target    = "integrations/${aws_apigatewayv2_integration.backend.id}"
-}
-
-# Route for clients endpoints
-resource "aws_apigatewayv2_route" "clients" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "ANY /api/clients/{proxy+}"
   target    = "integrations/${aws_apigatewayv2_integration.backend.id}"
 }
 
