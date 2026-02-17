@@ -2,6 +2,72 @@
 
 A system to manage clients receiving counselling for mental health.
 
+Customer On Boarding Flow
+
+Architecture Overview  
+The system uses a Next.js frontend that integrates an OpenAI-powered onboarding assistant. Users provide their details in natural language (voice or text), which the frontend sends directly to an OpenAI agent. The agent extracts structured fields (first name, last name, email) and returns them to the UI for user review. Once confirmed, the frontend sends the validated payload to a Go backend service exposed via AWS API Gateway. The backend performs additional validation and persists the client record in DynamoDB. The entire backend stack is deployed through GitHub Actions and provisioned using Makefile-driven AWS infrastructure.
+
+┌──────────────────────────┐
+│          User            │
+│  (speaks info)  │
+└─────────────┬────────────┘
+              │
+              ▼
+┌──────────────────────────────────────────────┐
+│        Next.js Frontend (Client UI)          │
+│  - Chat-style onboarding assistant            │
+│  - Transcript + Detected Details              │
+│  - State management + validation              │
+└─────────────┬────────────────────────────────┘
+              │ Prompt + conversation context
+              ▼
+┌──────────────────────────────────────────────┐
+│          OpenAI Agent / LLM                  │
+│  - Natural language → structured fields       │
+│  - Extracts: first name, last name, email     │
+│  - Returns JSON-like structured output        │
+└─────────────┬────────────────────────────────┘
+              │ Structured fields
+              ▼
+┌──────────────────────────────────────────────┐
+│        Next.js Frontend (Review Step)        │
+│  - Shows parsed fields                        │
+│  - User confirms or edits                     │
+└─────────────┬────────────────────────────────┘
+              │ Validated payload
+              ▼
+┌──────────────────────────────────────────────┐
+│      AWS API Gateway (HTTPS endpoint)        │
+└─────────────┬────────────────────────────────┘
+              │
+              ▼
+┌──────────────────────────────────────────────┐
+│   Go Backend Service (johns_ai_project_backend) │
+│  - Validation                                  │
+│  - Business logic                              │
+│  - Error handling                              │
+│  - Persistence layer                           │
+└─────────────┬────────────────────────────────┘
+              │
+              ▼
+┌──────────────────────────────────────────────┐
+│        DynamoDB (Client Records)             │
+│  - First name                                 │
+│  - Last name                                  │
+│  - Email                                      │
+│  - Metadata                                   │
+└──────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────┐
+│ GitHub Actions CI/CD                         │
+│ - Build & test                                │
+│ - Deploy backend to AWS                       │
+│ - Provision infra via Makefile/Terraform      │
+└──────────────────────────────────────────────┘
+
+
+
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
