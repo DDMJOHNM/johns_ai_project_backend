@@ -1,8 +1,6 @@
-# Mental Health Counselling Client Management System
+# Positive Thought Counselling - Mental Health Counselling Client Management System
 
-A system to manage clients receiving counselling for mental health.
-
-Customer On Boarding Flow
+## Architecture Overview  - Onboarding 
 
 Architecture Overview  
 The system uses a Next.js frontend that integrates an OpenAI-powered onboarding assistant. Users provide their details in natural language (voice or text), which the frontend sends directly to an OpenAI agent. The agent extracts structured fields (first name, last name, email) and returns them to the UI for user review. Once confirmed, the frontend sends the validated payload to a Go backend service exposed via AWS API Gateway. The backend performs additional validation and persists the client record in DynamoDB. The entire backend stack is deployed through GitHub Actions and provisioned using Makefile-driven AWS infrastructure.
