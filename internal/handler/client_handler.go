@@ -1,23 +1,32 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/jmason/john_ai_project/internal/repository"
-	"github.com/jmason/john_ai_project/internal/service"
 )
 
 type ContextKey string
 
 const ClientIDKey ContextKey = "client_id"
 
-type ClientHandler struct {
-	service *service.ClientService
+// ClientService interface for dependency injection
+type ClientService interface {
+	GetClientList(ctx context.Context) ([]repository.Client, error)
+	GetClientByID(ctx context.Context, id string) (*repository.Client, error)
+	GetActiveClients(ctx context.Context) ([]repository.Client, error)
+	GetInactiveClients(ctx context.Context) ([]repository.Client, error)
+	CreateClient(ctx context.Context, client *repository.Client) error
 }
 
-func NewClientHandler(service *service.ClientService) *ClientHandler {
+type ClientHandler struct {
+	service ClientService
+}
+
+func NewClientHandler(service ClientService) *ClientHandler {
 	return &ClientHandler{
 		service: service,
 	}
