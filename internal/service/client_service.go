@@ -9,11 +9,19 @@ import (
 
 //TODO:tests for this service
 
-type ClientService struct {
-	repo *repository.ClientRepository
+// ClientRepository interface for dependency injection
+type ClientRepository interface {
+	GetClientList(ctx context.Context) ([]repository.Client, error)
+	GetClientByID(ctx context.Context, id string) (*repository.Client, error)
+	GetClientsByStatus(ctx context.Context, status string) ([]repository.Client, error)
+	CreateClient(ctx context.Context, client *repository.Client) error
 }
 
-func NewClientService(repo *repository.ClientRepository) *ClientService {
+type ClientService struct {
+	repo ClientRepository
+}
+
+func NewClientService(repo ClientRepository) *ClientService {
 	return &ClientService{
 		repo: repo,
 	}
