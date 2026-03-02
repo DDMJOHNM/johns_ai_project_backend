@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-BASE_URL="${API_URL:-http://localhost:8080}"
+BASE_URL="${API_URL:-http://localhost:8081}"
 RANDOM_SUFFIX=$(date +%s)
 
 echo "=== Testing Authentication System ==="

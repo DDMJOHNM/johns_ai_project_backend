@@ -145,6 +145,81 @@ func TestClientService_CreateClient(t *testing.T) {
 			},
 			expectedError: "failed to create client",
 		},
+		{
+			name: "Failure - Missing first_name",
+			client: &repository.Client{
+				LastName: "Doe",
+				Email:    "test@example.com",
+			},
+			mockSetup:     func(m *MockClientRepository) {},
+			expectedError: "first_name, last_name, and email are required",
+		},
+		{
+			name: "Failure - Missing last_name",
+			client: &repository.Client{
+				FirstName: "John",
+				Email:     "test@example.com",
+			},
+			mockSetup:     func(m *MockClientRepository) {},
+			expectedError: "first_name, last_name, and email are required",
+		},
+		{
+			name: "Failure - Missing email",
+			client: &repository.Client{
+				FirstName: "John",
+				LastName:  "Doe",
+			},
+			mockSetup:     func(m *MockClientRepository) {},
+			expectedError: "first_name, last_name, and email are required",
+		},
+		{
+			name: "Failure - Invalid email format",
+			client: &repository.Client{
+				FirstName: "John",
+				LastName:  "Doe",
+				Email:     "not-an-email",
+			},
+			mockSetup:     func(m *MockClientRepository) {},
+			expectedError: "invalid email format",
+		},
+		{
+			name: "Success - Default status when empty",
+			client: &repository.Client{
+				FirstName: "Jane",
+				LastName:  "Smith",
+				Email:     "jane@example.com",
+				Status:    "",
+			},
+			mockSetup: func(m *MockClientRepository) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					if client.Status != "active" {
+						t.Errorf("Expected default status 'active', got '%s'", client.Status)
+					}
+					return nil
+				}
+			},
+			expectedError: "",
+		},
+		{
+			name: "Success - Generates ID when empty",
+			client: &repository.Client{
+				FirstName: "New",
+				LastName:  "User",
+				Email:     "new@example.com",
+			},
+			mockSetup: func(m *MockClientRepository) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					if client.ID == "" {
+						t.Error("Expected ID to be generated")
+					}
+					if !strings.HasPrefix(client.ID, "client-") {
+						t.Errorf("Expected ID to start with 'client-', got %s", client.ID)
+					}
+					return nil
+				}
+			},
+			expectedError: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -171,4 +246,3 @@ func TestClientService_CreateClient(t *testing.T) {
 		})
 	}
 }
-

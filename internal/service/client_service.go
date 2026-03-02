@@ -2,12 +2,22 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmason/john_ai_project/internal/repository"
 )
 
-//TODO:tests for this service
+// Validation errors for CreateClient
+var (
+	ErrMissingRequiredFields = errors.New("first_name, last_name, and email are required")
+	ErrInvalidEmail          = errors.New("invalid email format")
+)
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 // ClientRepository interface for dependency injection
 type ClientRepository interface {
@@ -60,6 +70,33 @@ func (s *ClientService) GetInactiveClients(ctx context.Context) ([]repository.Cl
 }
 
 func (s *ClientService) CreateClient(ctx context.Context, client *repository.Client) error {
+	// Validate required fields
+	if client.FirstName == "" || client.LastName == "" || client.Email == "" {
+		return ErrMissingRequiredFields
+	}
+
+	// Validate email format
+	if !emailRegex.MatchString(client.Email) {
+		return ErrInvalidEmail
+	}
+
+	// Set default status if not provided
+	if client.Status == "" {
+		client.Status = "active"
+	}
+
+	// Generate ID if not provided
+	if client.ID == "" {
+		client.ID = "client-" + uuid.New().String()
+	}
+
+	// Set timestamps
+	now := time.Now().Format(time.RFC3339)
+	if client.CreatedAt == "" {
+		client.CreatedAt = now
+	}
+	client.UpdatedAt = now
+
 	if err := s.repo.CreateClient(ctx, client); err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}

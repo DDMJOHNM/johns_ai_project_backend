@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/jmason/john_ai_project/internal/repository"
+	"github.com/jmason/john_ai_project/internal/service"
 )
 
 type ContextKey string
@@ -134,28 +134,8 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	//TODO: Add validator
-	if req.FirstName == "" || req.LastName == "" || req.Email == "" {
-		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing required fields",
-			Message: "first_name, last_name, and email are required",
-		})
-		return
-	}
-
-	// Set default status if not provided
-	if req.Status == "" {
-		req.Status = "active"
-	}
-
-	// TODO: UseGoogle UUID v4
-	clientID := "client-" + time.Now().Format("20060102150405")
-
-	// Create client object
-	now := time.Now().Format(time.RFC3339)
+	// Map request to domain model - service handles validation, defaults, ID, timestamps
 	client := &repository.Client{
-		ID:                    clientID,
 		FirstName:             req.FirstName,
 		LastName:              req.LastName,
 		Email:                 req.Email,
@@ -165,12 +145,14 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 		EmergencyContactName:  req.EmergencyContactName,
 		EmergencyContactPhone: req.EmergencyContactPhone,
 		Status:                req.Status,
-		CreatedAt:             now,
-		UpdatedAt:             now,
 	}
 
 	if err := h.service.CreateClient(r.Context(), client); err != nil {
-		RespondJSON(w, http.StatusInternalServerError, ErrorResponse{
+		statusCode := http.StatusInternalServerError
+		if err == service.ErrMissingRequiredFields || err == service.ErrInvalidEmail {
+			statusCode = http.StatusBadRequest
+		}
+		RespondJSON(w, statusCode, ErrorResponse{
 			Error:   "Failed to create client",
 			Message: err.Error(),
 		})
