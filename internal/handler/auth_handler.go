@@ -3,17 +3,28 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/jmason/john_ai_project/internal/repository"
 	"github.com/jmason/john_ai_project/internal/service"
 )
 
-type AuthHandler struct {
-	authService *service.AuthService
+// AuthService interface for dependency injection
+type AuthService interface {
+	Register(ctx context.Context, username, email, password, firstName, lastName string) (*repository.User, error)
+	Login(ctx context.Context, usernameOrEmail, password string) (string, *repository.User, error)
+	GetUserByID(ctx context.Context, userID string) (*repository.User, error)
+	GenerateToken(user *repository.User) (string, error)
+	ValidateToken(tokenString string) (*service.Claims, error)
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+type AuthHandler struct {
+	authService AuthService
+}
+
+func NewAuthHandler(authService AuthService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
@@ -43,23 +54,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
 			Error:   "Invalid request body",
 			Message: err.Error(),
-		})
-		return
-	}
-
-	// TODO: make a validation function for this
-	if req.Username == "" || req.Email == "" || req.Password == "" || req.FirstName == "" || req.LastName == "" {
-		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing required fields",
-			Message: "username, email, password, first_name, and last_name are required",
-		})
-		return
-	}
-
-	if len(req.Password) < 8 {
-		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
-			Error:   "Invalid password",
-			Message: "Password must be at least 8 characters long",
 		})
 		return
 	}
@@ -98,17 +92,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Login == "" || req.Password == "" {
-		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
-			Error:   "Missing required fields",
-			Message: "login and password are required",
-		})
-		return
-	}
-
 	token, user, err := h.authService.Login(r.Context(), req.Login, req.Password)
 	if err != nil {
-		RespondJSON(w, http.StatusUnauthorized, ErrorResponse{
+		statusCode := http.StatusUnauthorized
+		if errors.Is(err, service.ErrAuthLoginMissingFields) {
+			statusCode = http.StatusBadRequest
+		}
+		RespondJSON(w, statusCode, ErrorResponse{
 			Error:   "Login failed",
 			Message: err.Error(),
 		})
