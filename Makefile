@@ -1,4 +1,4 @@
-.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway deploy-ec2-backend get-backend-url update-api-gateway-backend deploy-full-stack terraform-init terraform-plan terraform-apply
+.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway deploy-ec2-backend get-backend-url update-api-gateway-backend deploy-full-stack terraform-init terraform-plan terraform-apply
 
 # Variables with defaults (can be overridden by .env file or environment)
 # The .env file is automatically loaded by docker-compose and Go programs
@@ -34,6 +34,9 @@ help:
 	@echo "  make run-example     - Run example client service"
 	@echo "  make build-server    - Build API server binary"
 	@echo "  make run-server      - Run API server (default port 8080)"
+	@echo ""
+	@echo "Test Commands:"
+	@echo "  make test            - Run Go unit tests"
 	@echo ""
 	@echo "Setup & Cleanup:"
 	@echo "  make setup           - Full setup (docker-up + test-db)"
@@ -95,6 +98,9 @@ seed-db:
 	 DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)} \
 	 AWS_REGION=$${AWS_REGION:-$(AWS_REGION)} \
 	 go run cmd/seed-db/main.go
+
+test:
+	@go test -v ./...
 
 test-db: setup-db seed-db
 	@echo "✓ DynamoDB setup and seeding completed!"
