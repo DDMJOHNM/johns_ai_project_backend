@@ -169,8 +169,19 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	}))
 
-	// Middleware to log requests and strip stage prefix
+	// Middleware to log requests, strip stage prefix, and recover from panics
 	logAndStripHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("[MIDDLEWARE] PANIC recovered: %v", err)
+				fmt.Fprintf(os.Stderr, "[MIDDLEWARE] PANIC recovered: %v\n", err)
+				handler.RespondJSON(w, http.StatusInternalServerError, handler.ErrorResponse{
+					Error:   "Internal server error",
+					Message: "Request processing failed",
+				})
+			}
+		}()
+
 		start := time.Now()
 		originalPath := r.URL.Path
 		path := r.URL.Path
