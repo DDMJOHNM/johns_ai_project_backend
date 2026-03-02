@@ -207,7 +207,7 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	})
 
-	port := getEnv("HTTP_PORT", "8080")
+	port := getEnv("HTTP_PORT", "8081")
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      logAndStripHandler,

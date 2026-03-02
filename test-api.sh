@@ -6,7 +6,7 @@
 #   ./test-api.sh <api-gateway-url>  # Test API Gateway
 
 if [ -z "$1" ]; then
-  BASE_URL="${BASE_URL:-http://localhost:8080}"
+  BASE_URL="${BASE_URL:-http://localhost:8081}"
   echo "Testing local server at: $BASE_URL"
 else
   BASE_URL="$1"

@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jmason/john_ai_project/internal/repository"
+	"github.com/jmason/john_ai_project/internal/service"
 )
 
 // Mock ClientService
@@ -122,14 +123,11 @@ func TestClientHandler_CreateClient(t *testing.T) {
 				FirstName: "Jane",
 				LastName:  "Smith",
 				Email:     "jane@example.com",
-				// Status not provided
+				// Status not provided - service sets default
 			},
 			mockSetup: func(m *MockClientService) {
 				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
-					// Verify default status is set to "active"
-					if diff := cmp.Diff("active", client.Status); diff != "" {
-						t.Errorf("Status mismatch (-want +got):\n%s", diff)
-					}
+					client.Status = "active" // Simulate service setting default
 					return nil
 				}
 			},
@@ -137,55 +135,67 @@ func TestClientHandler_CreateClient(t *testing.T) {
 			validateBody: func(t *testing.T, w *httptest.ResponseRecorder) {
 				var got repository.Client
 				json.NewDecoder(w.Body).Decode(&got)
-
 				if got.Status != "active" {
 					t.Errorf("Status: want 'active', got '%s'", got.Status)
 				}
 			},
 		},
 		{
-			name:   "Failure - Missing first_name",
+			name:   "Failure - Missing first_name (service validation)",
 			method: http.MethodPost,
 			requestBody: CreateClientRequest{
-				// FirstName missing
 				LastName: "Doe",
 				Email:    "test@example.com",
 			},
-			mockSetup:      func(m *MockClientService) {},
+			mockSetup: func(m *MockClientService) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					return service.ErrMissingRequiredFields
+				}
+			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "first_name, last_name, and email are required",
 		},
 		{
-			name:   "Failure - Missing last_name",
+			name:   "Failure - Missing last_name (service validation)",
 			method: http.MethodPost,
 			requestBody: CreateClientRequest{
 				FirstName: "John",
-				// LastName missing
-				Email: "test@example.com",
+				Email:     "test@example.com",
 			},
-			mockSetup:      func(m *MockClientService) {},
+			mockSetup: func(m *MockClientService) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					return service.ErrMissingRequiredFields
+				}
+			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "first_name, last_name, and email are required",
 		},
 		{
-			name:   "Failure - Missing email",
+			name:   "Failure - Missing email (service validation)",
 			method: http.MethodPost,
 			requestBody: CreateClientRequest{
 				FirstName: "John",
 				LastName:  "Doe",
-				// Email missing
 			},
-			mockSetup:      func(m *MockClientService) {},
+			mockSetup: func(m *MockClientService) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					return service.ErrMissingRequiredFields
+				}
+			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "first_name, last_name, and email are required",
 		},
 		{
-			name:   "Failure - Missing all required fields",
+			name:   "Failure - Missing all required fields (service validation)",
 			method: http.MethodPost,
 			requestBody: CreateClientRequest{
-				Phone: "+1234567890", // Only optional field
+				Phone: "+1234567890",
 			},
-			mockSetup:      func(m *MockClientService) {},
+			mockSetup: func(m *MockClientService) {
+				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					return service.ErrMissingRequiredFields
+				}
+			},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "first_name, last_name, and email are required",
 		},
@@ -231,10 +241,10 @@ func TestClientHandler_CreateClient(t *testing.T) {
 				FirstName: "Min",
 				LastName:  "Fields",
 				Email:     "min@example.com",
-				// All optional fields omitted
 			},
 			mockSetup: func(m *MockClientService) {
 				m.CreateClientFunc = func(ctx context.Context, client *repository.Client) error {
+					client.Status = "active" // Simulate service setting default
 					return nil
 				}
 			},
@@ -242,15 +252,13 @@ func TestClientHandler_CreateClient(t *testing.T) {
 			validateBody: func(t *testing.T, w *httptest.ResponseRecorder) {
 				var got repository.Client
 				json.NewDecoder(w.Body).Decode(&got)
-
 				want := repository.Client{
 					FirstName: "Min",
 					LastName:  "Fields",
 					Email:     "min@example.com",
-					Phone:     "", // Should be empty
+					Phone:     "",
 					Status:    "active",
 				}
-
 				opts := cmpopts.IgnoreFields(repository.Client{}, "ID", "CreatedAt", "UpdatedAt",
 					"DateOfBirth", "Address", "EmergencyContactName", "EmergencyContactPhone")
 				if diff := cmp.Diff(want, got, opts); diff != "" {
