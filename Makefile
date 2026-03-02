@@ -241,8 +241,22 @@ get-backend-url:
 		--region $(AWS_REGION) 2>/dev/null || echo "Stack not found. Deploy with: make deploy-ec2-backend"
 
 # Update API Gateway to point at current EC2 backend (fixes 503 after instance replacement)
-# Uses Terraform - backend_url is wired from module.ec2 in main.tf
-update-api-gateway-backend: terraform-apply
+# Passes backend_url_override so API Gateway targets the correct EC2
+update-api-gateway-backend:
+	@if [ -z "$${EC2_INSTANCE_ID}" ]; then \
+		echo "Error: EC2_INSTANCE_ID required. Usage: EC2_INSTANCE_ID=i-xxx make update-api-gateway-backend"; \
+		exit 1; \
+	fi; \
+	echo "Getting backend URL from instance $${EC2_INSTANCE_ID}..."; \
+	DNS=$$(aws ec2 describe-instances --instance-ids "$${EC2_INSTANCE_ID}" \
+		--query 'Reservations[0].Instances[0].PublicDnsName' --output text --region $(AWS_REGION)); \
+	BACKEND_URL="http://$${DNS}:8080"; \
+	if [ -z "$$DNS" ] || [ "$$DNS" = "None" ]; then \
+		echo "Error: Could not get EC2 public DNS. Check instance exists and AWS credentials."; \
+		exit 1; \
+	fi; \
+	echo "Backend URL: $$BACKEND_URL"; \
+	cd infra/terraform && terraform apply -auto-approve -input=false -var="backend_url_override=$$BACKEND_URL"
 
 deploy-full-stack: deploy-ec2-backend
 	@echo "Waiting for EC2 instance to be ready..."

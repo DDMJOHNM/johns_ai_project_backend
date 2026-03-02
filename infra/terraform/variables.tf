@@ -28,3 +28,9 @@ variable "allowed_cidr_blocks" {
     type = string
     default = "161.29.129.153/32"
 }
+
+variable "backend_url_override" {
+    description = "Override API Gateway backend URL (e.g. when EC2 was replaced outside Terraform). Uses module.ec2.backend_url when empty."
+    type        = string
+    default     = ""
+}
