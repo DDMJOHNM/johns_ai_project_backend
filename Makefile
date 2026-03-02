@@ -1,4 +1,4 @@
-.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway deploy-ec2-backend get-backend-url deploy-full-stack
+.PHONY: help setup-db seed-db docker-up docker-down docker-logs docker-status clean test-db setup verify build build-create-db build-seed-db build-example run-example build-server run-server deploy-api-gateway get-api-url delete-api-gateway test-api-gateway deploy-ec2-backend get-backend-url update-api-gateway-backend deploy-full-stack terraform-init terraform-plan terraform-apply
 
 # Variables with defaults (can be overridden by .env file or environment)
 # The .env file is automatically loaded by docker-compose and Go programs
@@ -40,11 +40,17 @@ help:
 	@echo "  make clean           - Clean build artifacts and binaries"
 	@echo ""
 	@echo "EC2 Backend Commands:"
-	@echo "  make deploy-ec2-backend - Deploy EC2 backend instance"
+	@echo "  make deploy-ec2-backend - Deploy EC2 backend instance (CloudFormation)"
 	@echo "  make get-backend-url     - Get EC2 backend URL"
 	@echo "  make deploy-full-stack  - Deploy EC2 + API Gateway (full stack)"
 	@echo ""
-	@echo "API Gateway Commands:"
+	@echo "Terraform Commands (primary deployment):"
+	@echo "  make terraform-init             - Initialize Terraform"
+	@echo "  make terraform-plan            - Plan infrastructure changes"
+	@echo "  make terraform-apply           - Apply Terraform (updates EC2 + API Gateway)"
+	@echo "  make update-api-gateway-backend - Sync API Gateway with EC2 (runs terraform apply)"
+	@echo ""
+	@echo "API Gateway Commands (CloudFormation only):"
 	@echo "  make deploy-api-gateway - Deploy API Gateway (requires BACKEND_URL)"
 	@echo "  make get-api-url        - Get API Gateway endpoint URL"
 	@echo "  make test-api-gateway   - Test API Gateway endpoints"
@@ -176,12 +182,13 @@ deploy-api-gateway:
 	fi
 	@aws cloudformation deploy \
 		--stack-name johns-ai-api-gateway \
-		--template-file infra/api-gateway.yml \
+		--template-file infra/cloudformation-archive/api-gateway.yml \
 		--parameter-overrides \
 			BackendUrl=$(BACKEND_URL) \
 			StageName=$${STAGE_NAME:-prod} \
 			Environment=$${ENVIRONMENT:-production} \
 		--capabilities CAPABILITY_IAM \
+		--no-fail-on-empty-changeset \
 		--region $(AWS_REGION)
 
 get-api-url:
@@ -219,7 +226,7 @@ deploy-ec2-backend:
 	@echo "Deploying EC2 backend..."
 	@aws cloudformation deploy \
 		--stack-name johns-ai-backend-ec2 \
-		--template-file infra/ec2-backend-simple.yml \
+		--template-file infra/cloudformation-archive/ec2-backend-simple.yml \
 		--parameter-overrides \
 			InstanceType=$${INSTANCE_TYPE:-t3.micro} \
 			Environment=$${ENVIRONMENT:-production} \
@@ -233,6 +240,10 @@ get-backend-url:
 		--output text \
 		--region $(AWS_REGION) 2>/dev/null || echo "Stack not found. Deploy with: make deploy-ec2-backend"
 
+# Update API Gateway to point at current EC2 backend (fixes 503 after instance replacement)
+# Uses Terraform - backend_url is wired from module.ec2 in main.tf
+update-api-gateway-backend: terraform-apply
+
 deploy-full-stack: deploy-ec2-backend
 	@echo "Waiting for EC2 instance to be ready..."
 	@sleep 60
@@ -245,4 +256,16 @@ deploy-full-stack: deploy-ec2-backend
 	echo "Deploying API Gateway..."; \
 	make deploy-api-gateway BACKEND_URL=$$BACKEND_URL
 
+# Terraform commands (primary deployment - EC2 + API Gateway wired automatically)
+terraform-init:
+	@echo "Initializing Terraform..."
+	@cd infra/terraform && terraform init
+
+terraform-plan:
+	@echo "Planning Terraform changes..."
+	@cd infra/terraform && terraform plan -input=false
+
+terraform-apply:
+	@echo "Applying Terraform (updates EC2 + API Gateway backend URL)..."
+	@cd infra/terraform && terraform apply -auto-approve -input=false
 
