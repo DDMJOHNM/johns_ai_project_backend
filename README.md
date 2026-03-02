@@ -629,6 +629,7 @@ To enable deployment, configure the following GitHub Secrets in your repository:
 
 #### Optional Secrets (for specific deployment targets)
 
+- `EC2_INSTANCE_ID`: EC2 instance ID for SSM deploy (required if instance was recreated; workflow also tries CloudFormation stack `johns-ai-backend-ec2`)
 - `EC2_HOST`: EC2 instance hostname/IP
 - `EC2_USER`: EC2 SSH user (default: `ec2-user`)
 - `EC2_SSH_KEY`: SSH private key for EC2

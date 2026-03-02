@@ -30,7 +30,9 @@ on:
 env:
   GO_VERSION: '1.20'
   AWS_REGION: 'us-east-1'
-  EC2_INSTANCE_ID: 'i-0d3e8d15e57ec16fc'
+  # Use EC2_INSTANCE_ID secret if set (Settings > Secrets > Actions). Otherwise tries CloudFormation, then fallback.
+  EC2_INSTANCE_ID: 'i-0fbde8f1223e56d54'
+  EC2_CF_STACK: 'johns-ai-backend-ec2'
   S3_BUCKET: 'duskaotearoa-terraform-state'
 
 jobs:
@@ -66,6 +68,52 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
+      - name: Resolve and validate EC2 instance
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: instance
+        run: |
+          set -e
+          # Resolve instance ID: secret > CloudFormation > env default
+          if [ -n "${{ secrets.EC2_INSTANCE_ID }}" ]; then
+            INSTANCE_ID="${{ secrets.EC2_INSTANCE_ID }}"
+            echo "Using instance ID from EC2_INSTANCE_ID secret"
+          elif CF_ID=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.EC2_CF_STACK }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null) && [ -n "$CF_ID" ]; then
+            INSTANCE_ID="$CF_ID"
+            echo "Using instance ID from CloudFormation stack ${{ env.EC2_CF_STACK }}"
+          else
+            INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+            echo "Using instance ID from workflow default"
+          fi
+          
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          
+          # Validate instance exists and is running
+          STATE=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query 'Reservations[0].Instances[0].State.Name' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || echo "invalid")
+          
+          if [ "$STATE" != "running" ]; then
+            echo "❌ EC2 instance $INSTANCE_ID is not reachable. State: ${STATE:-not found}"
+            echo ""
+            echo "Possible causes:"
+            echo "  - Instance was terminated or replaced (new instances get new IDs)"
+            echo "  - Wrong AWS account or region"
+            echo "  - Instance is stopped"
+            echo ""
+            echo "Fix: Get the current instance ID from AWS Console or:"
+            echo "  aws ec2 describe-instances --filters 'Name=tag:Name,Values=*john*backend*' --query 'Reservations[0].Instances[0].InstanceId' --output text"
+            echo ""
+            echo "Then add it as GitHub secret: Settings > Secrets > Actions > EC2_INSTANCE_ID"
+            exit 1
+          fi
+          echo "✅ Instance $INSTANCE_ID is running"
+      
       - name: Upload binary to S3
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -77,7 +125,7 @@ jobs:
         run: |
           # Send commands to EC2 via SSM
           aws ssm send-command \
-            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --instance-ids ${{ steps.instance.outputs.instance_id }} \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
               "sudo systemctl stop john-ai-backend.service || true",
@@ -97,19 +145,19 @@ jobs:
           echo "Waiting for deployment command: $COMMAND_ID"
           aws ssm wait command-executed \
             --command-id $COMMAND_ID \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} || true
+            --instance-id ${{ steps.instance.outputs.instance_id }} || true
           
           # Get full command output
           echo "=== Deployment Output ==="
           aws ssm get-command-invocation \
             --command-id $COMMAND_ID \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --instance-id ${{ steps.instance.outputs.instance_id }} \
             --query "StandardOutputContent" \
             --output text
           
           # Check if service is running
           STATUS=$(aws ssm send-command \
-            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --instance-ids ${{ steps.instance.outputs.instance_id }} \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=["systemctl is-active john-ai-backend.service"]' \
             --output text \
@@ -119,7 +167,7 @@ jobs:
           
           SERVICE_STATUS=$(aws ssm get-command-invocation \
             --command-id $STATUS \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --instance-id ${{ steps.instance.outputs.instance_id }} \
             --query "StandardOutputContent" \
             --output text)
           
@@ -139,24 +187,24 @@ jobs:
           # Run health check FROM INSIDE the instance via SSM - avoids security group blocking public IP
           echo "Running health check via SSM (curl localhost:8080/health on EC2)..."
           HC_CMD=$(aws ssm send-command \
-            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --instance-ids ${{ steps.instance.outputs.instance_id }} \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=["curl -sf http://localhost:8080/health && echo HEALTH_OK || (echo HEALTH_FAIL; exit 1)"]' \
             --timeout-seconds 30 \
             --output text \
             --query "Command.CommandId")
           
-          aws ssm wait command-executed --command-id $HC_CMD --instance-id ${{ env.EC2_INSTANCE_ID }} || true
+          aws ssm wait command-executed --command-id $HC_CMD --instance-id ${{ steps.instance.outputs.instance_id }} || true
           sleep 2
           
           HC_OUTPUT=$(aws ssm get-command-invocation \
             --command-id $HC_CMD \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --instance-id ${{ steps.instance.outputs.instance_id }} \
             --query "StandardOutputContent" \
             --output text 2>/dev/null || echo "")
           HC_STATUS=$(aws ssm get-command-invocation \
             --command-id $HC_CMD \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --instance-id ${{ steps.instance.outputs.instance_id }} \
             --query "Status" \
             --output text 2>/dev/null || echo "Unknown")
           
@@ -168,7 +216,7 @@ jobs:
           else
             echo "❌ Health check failed - fetching service logs..."
             LOG_CMD=$(aws ssm send-command \
-              --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+              --instance-ids ${{ steps.instance.outputs.instance_id }} \
               --document-name "AWS-RunShellScript" \
               --parameters 'commands=["sudo journalctl -u john-ai-backend.service -n 50 --no-pager"]' \
               --output text \
@@ -176,7 +224,7 @@ jobs:
             sleep 8
             aws ssm get-command-invocation \
               --command-id $LOG_CMD \
-              --instance-id ${{ env.EC2_INSTANCE_ID }} \
+              --instance-id ${{ steps.instance.outputs.instance_id }} \
               --query "StandardOutputContent" \
               --output text || true
             exit 1
