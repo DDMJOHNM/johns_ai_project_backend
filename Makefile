@@ -33,7 +33,7 @@ help:
 	@echo "  make build-example   - Build example client service binary"
 	@echo "  make run-example     - Run example client service"
 	@echo "  make build-server    - Build API server binary"
-	@echo "  make run-server      - Run API server (default port 8080)"
+	@echo "  make run-server      - Run API server (default port 8081)"
 	@echo ""
 	@echo "Test Commands:"
 	@echo "  make test            - Run Go unit tests"
@@ -151,12 +151,12 @@ build-server:
 
 run-server:
 	@echo "Starting API server..."
-	@echo "Server will be available at http://localhost:$${HTTP_PORT:-8080}"
+	@echo "Server will be available at http://localhost:$${HTTP_PORT:-8081}"
 	@echo "Press Ctrl+C to stop"
 	@if [ -f .env ]; then export $$(grep -v '^#' .env | xargs); fi; \
 	 export DYNAMODB_ENDPOINT=$${DYNAMODB_ENDPOINT:-$(DYNAMODB_ENDPOINT)}; \
 	 export AWS_REGION=$${AWS_REGION:-$(AWS_REGION)}; \
-	 export HTTP_PORT=$${HTTP_PORT:-8080}; \
+	 export HTTP_PORT=$${HTTP_PORT:-8081}; \
 	 go run ./cmd/server
 
 # Cleanup

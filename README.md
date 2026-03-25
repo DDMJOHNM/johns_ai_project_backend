@@ -1,68 +1,27 @@
 # Positive Thought Counselling - Mental Health Counselling Client Management System
 
-## Architecture Overview  - Onboarding 
+## Architecture Overview  - Onboarding
 
 The system uses a Next.js frontend that integrates an OpenAI-powered onboarding assistant. Users provide their details in natural language (voice or text), which the frontend sends directly to an OpenAI agent. The agent extracts structured fields (first name, last name, email) and returns them to the UI for user review. Once confirmed, the frontend sends the validated payload to a Go backend service exposed via AWS API Gateway. The backend performs additional validation and persists the client record in DynamoDB. The entire backend stack is deployed through GitHub Actions and provisioned using Makefile-driven AWS infrastructure.
 
-```
-┌──────────────────────────┐
-│          User            │
-│  (speaks info)  │
-└─────────────┬────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────┐
-│        Next.js Frontend (Client UI)          │
-│  - Chat-style onboarding assistant            │
-│  - Transcript + Detected Details              │
-│  - State management + validation              │
-└─────────────┬────────────────────────────────┘
-              │ Prompt + conversation context
-              ▼
-┌──────────────────────────────────────────────┐
-│          OpenAI Agent / LLM                  │
-│  - Natural language → structured fields       │
-│  - Extracts: first name, last name, email     │
-│  - Returns JSON-like structured output        │
-└─────────────┬────────────────────────────────┘
-              │ Structured fields
-              ▼
-┌──────────────────────────────────────────────┐
-│        Next.js Frontend (Review Step)        │
-│  - Shows parsed fields                        │
-│  - User confirms or edits                     │
-└─────────────┬────────────────────────────────┘
-              │ Validated payload
-              ▼
-┌──────────────────────────────────────────────┐
-│      AWS API Gateway (HTTPS endpoint)        │
-└─────────────┬────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────┐
-│   Go Backend Service (johns_ai_project_backend) │
-│  - Validation                                  │
-│  - Business logic                              │
-│  - Error handling                              │
-│  - Persistence layer                           │
-└─────────────┬────────────────────────────────┘
-              │
-              ▼
-┌──────────────────────────────────────────────┐
-│        DynamoDB (Client Records)             │
-│  - First name                                 │
-│  - Last name                                  │
-│  - Email                                      │
-│  - Metadata                                   │
-└──────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    User["User (speaks info)"]
+    Frontend1["Next.js Frontend (Client UI)<br/>- Chat-style onboarding assistant<br/>- Transcript + Detected Details<br/>- State management + validation"]
+    LLM["OpenAI Agent / LLM<br/>- Natural language → structured fields<br/>- Extracts: first name, last name, email<br/>- Returns JSON-like structured output"]
+    Frontend2["Next.js Frontend (Review Step)<br/>- Shows parsed fields<br/>- User confirms or edits"]
+    APIGateway["AWS API Gateway (HTTPS endpoint)"]
+    Backend["Go Backend Service (johns_ai_project_backend)<br/>- Validation<br/>- Business logic<br/>- Error handling<br/>- Persistence layer"]
+    DynamoDB["DynamoDB (Client Records)<br/>- First name<br/>- Last name<br/>- Email<br/>- Metadata"]
+    GitHubActions["GitHub Actions CI/CD<br/>- Build & test<br/>- Deploy backend to AWS<br/>- Provision infra via Makefile/Terraform"]
 
-┌──────────────────────────────────────────────┐
-│ GitHub Actions CI/CD                         │
-│ - Build & test                                │
-│ - Deploy backend to AWS                       │
-│ - Provision infra via Makefile/Terraform      │
-└──────────────────────────────────────────────┘
-
+    User --> Frontend1
+    Frontend1 -->|Prompt + conversation context| LLM
+    LLM -->|Structured fields| Frontend2
+    Frontend2 -->|Validated payload| APIGateway
+    APIGateway --> Backend
+    Backend --> DynamoDB
+    GitHubActions -.->|deploys| Backend
 ```
 
 
@@ -93,51 +52,53 @@ The system uses a Next.js frontend that integrates an OpenAI-powered onboarding 
 ## Quick Start
 
 1. **Start DynamoDB Local container:**
-   ```bash
+  ```bash
    make docker-up
-   ```
-
+  ```
 2. **Create DynamoDB tables:**
-   ```bash
+  ```bash
    make setup-db
-   ```
-
+  ```
 3. **Seed DynamoDB with test data:**
-   ```bash
+  ```bash
    make seed-db
-   ```
+  ```
 
 Or run everything at once:
+
 ```bash
 make setup
 ```
 
-4. **Start the API server:**
-   ```bash
-   make run-server
-   ```
+1. **Start the API server:**
+  ```bash
+   make run-server // 
+  ```
 
 The server will be available at `http://localhost:8080`.
 
 ## Available Commands
 
 ### Debugging
+
 - `docker stop` - john_ai_backend
 
-
 ### Docker Commands
+
 - `make docker-up` - Start DynamoDB Local container
 - `make docker-down` - Stop DynamoDB Local container
 - `make docker-logs` - View DynamoDB container logs
 - `make docker-status` - Check DynamoDB container status
 
 ### Database Commands
+
 - `make setup-db` - Create DynamoDB tables (clients and users)
 - `make seed-db` - Seed DynamoDB with test data
 - `make test-db` - Run setup-db and seed-db
 - `make verify` - Verify tables exist and have data
 
 ### Build Commands
+
 - `make build` - Build all Go binaries
 - `make build-create-db` - Build create-db binary
 - `make build-seed-db` - Build seed-db binary
@@ -147,17 +108,20 @@ The server will be available at `http://localhost:8080`.
 - `make run-server` - Run API server (default port 8080)
 
 ### API Gateway Commands
+
 - `make deploy-api-gateway` - Deploy API Gateway (requires BACKEND_URL)
 - `make get-api-url` - Get API Gateway endpoint URL
 - `make test-api-gateway` - Test API Gateway endpoints
 - `make delete-api-gateway` - Delete API Gateway stack
 
 ### Setup & Cleanup
+
 - `make setup` - Full setup (docker-up + test-db)
 - `make clean` - Clean build artifacts and binaries
 
 ### Environment Variables
-- `DYNAMODB_ENDPOINT` - DynamoDB endpoint (default: http://localhost:8000)
+
+- `DYNAMODB_ENDPOINT` - DynamoDB endpoint (default: [http://localhost:8000](http://localhost:8000))
 - `AWS_REGION` - AWS region (default: us-east-1)
 - `HTTP_PORT` - HTTP server port (default: 8080)
 - `JWT_SECRET` - Secret key for JWT token signing (required for authentication)
@@ -170,81 +134,69 @@ The server will be available at `http://localhost:8080`.
 #### Initial Setup
 
 1. **Clone the repository:**
-   ```bash
+  ```bash
    git clone <repository-url>
    cd johns_ai_project_backend
-   ```
-
+  ```
 2. **Copy environment template:**
-   ```bash
+  ```bash
    cp .env.example .env
-   ```
-
+  ```
 3. **Configure local environment:**
-   Edit `.env` file with your local settings:
-   ```bash
-   DYNAMODB_ENDPOINT=http://localhost:8000
-   AWS_REGION=us-east-1
-   HTTP_PORT=8080
-   JWT_SECRET=dev-secret-key-change-in-production
-   ```
-
+  Edit `.env` file with your local settings:
 4. **Start the development environment:**
-   ```bash
+  ```bash
    make setup
-   ```
+  ```
    This will:
-   - Start DynamoDB Local in Docker
-   - Create database tables
-   - Seed the database with test data
-
+  - Start DynamoDB Local in Docker
+  - Create database tables
+  - Seed the database with test data
 5. **Start the API server:**
-   ```bash
+  ```bash
    make run-server
-   ```
+  ```
 
 The server will be available at `http://localhost:8080`.
 
 #### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `DYNAMODB_ENDPOINT` | DynamoDB endpoint URL | `http://localhost:8000` | No (for local) |
-| `AWS_REGION` | AWS region | `us-east-1` | Yes |
-| `HTTP_PORT` | HTTP server port | `8080` | No |
-| `JWT_SECRET` | JWT token signing secret | `dev-secret-key-...` | Yes (production) |
-| `AWS_ACCESS_KEY_ID` | AWS access key (production) | - | Yes (production) |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key (production) | - | Yes (production) |
+
+| Variable                | Description                 | Default                 | Required         |
+| ----------------------- | --------------------------- | ----------------------- | ---------------- |
+| `DYNAMODB_ENDPOINT`     | DynamoDB endpoint URL       | `http://localhost:8000` | No (for local)   |
+| `AWS_REGION`            | AWS region                  | `us-east-1`             | Yes              |
+| `HTTP_PORT`             | HTTP server port            | `8080`                  | No               |
+| `JWT_SECRET`            | JWT token signing secret    | `dev-secret-key-...`    | Yes (production) |
+| `AWS_ACCESS_KEY_ID`     | AWS access key (production) | -                       | Yes (production) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key (production) | -                       | Yes (production) |
+
 
 ### Production Environment
 
 #### AWS Setup
 
 1. **Create DynamoDB Tables:**
-   - Use AWS Console or the `create-db` script
-   - Ensure tables match the schema defined in the code
-
+  - Use AWS Console or the `create-db` script
+  - Ensure tables match the schema defined in the code
 2. **Configure IAM Permissions:**
-   - Create IAM user/role with DynamoDB permissions
-   - Attach policies: `AmazonDynamoDBFullAccess` (or custom policy)
-
+  - Create IAM user/role with DynamoDB permissions
+  - Attach policies: `AmazonDynamoDBFullAccess` (or custom policy)
 3. **Set up JWT Secret (Required for Authentication):**
-   ```bash
+  ```bash
    # Use the automated setup script
    ./scripts/setup-jwt-secret.sh
-   ```
-   
+  ```
    See [JWT Secret Setup Guide](docs/JWT_SECRET_SETUP.md) for detailed instructions.
-
 4. **Set Environment Variables:**
-   ```bash
+  ```bash
    # Remove DYNAMODB_ENDPOINT to use AWS endpoint
    export AWS_REGION=us-east-1
    export AWS_ACCESS_KEY_ID=your-access-key
    export AWS_SECRET_ACCESS_KEY=your-secret-key
    export HTTP_PORT=8080
    # JWT_SECRET is automatically loaded from SSM Parameter Store on EC2
-   ```
+  ```
 
 ## Database Configuration
 
@@ -255,19 +207,22 @@ cp .env.example .env
 ```
 
 Default DynamoDB settings (in `.env`):
+
 - `DYNAMODB_ENDPOINT=http://localhost:8000` - DynamoDB Local endpoint
 - `AWS_REGION=us-east-1` - AWS region
 
 You can override these by:
+
 1. Editing the `.env` file
 2. Setting environment variables when running commands:
-   ```bash
+  ```bash
    DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=us-east-1 make setup-db
-   ```
+  ```
 
 ## Database Schema
 
 ### Clients Table
+
 - **Primary Key:** `id` (String)
 - **Global Secondary Indexes:**
   - `email-index` - Query by email
@@ -276,6 +231,7 @@ You can override these by:
 - Status: active, inactive, archived
 
 ### Users Table
+
 - **Primary Key:** `id` (String)
 - **Global Secondary Indexes:**
   - `username-index` - Query by username
@@ -311,6 +267,7 @@ The server will start on `http://localhost:8080` (or the port specified in `HTTP
 Check if the server is running.
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -325,6 +282,7 @@ Check if the server is running.
 Retrieves all clients from the database.
 
 **Response:**
+
 ```json
 [
   {
@@ -351,14 +309,17 @@ Retrieves all clients from the database.
 Retrieves a single client by their ID.
 
 **Parameters:**
+
 - `id` (path parameter) - The client ID (e.g., `client-001`)
 
 **Example:**
+
 ```
 GET /api/clients/client-001
 ```
 
 **Response:**
+
 ```json
 {
   "id": "client-001",
@@ -377,6 +338,7 @@ GET /api/clients/client-001
 ```
 
 **Error Response (404):**
+
 ```
 Client not found: client-999
 ```
@@ -388,6 +350,7 @@ Client not found: client-999
 Retrieves all clients with status "active".
 
 **Response:**
+
 ```json
 [
   {
@@ -407,6 +370,7 @@ Retrieves all clients with status "active".
 Retrieves all clients with status "inactive".
 
 **Response:**
+
 ```json
 [
   {
@@ -436,21 +400,25 @@ Error responses include error messages in the response body.
 ### Using cURL
 
 #### Health Check
+
 ```bash
 curl -X GET http://localhost:8080/health
 ```
 
 #### Get All Clients
+
 ```bash
 curl -X GET http://localhost:8080/api/clients
 ```
 
 #### Get Active Clients
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/active
 ```
 
 #### Get Inactive Clients
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/inactive
 ```
@@ -458,26 +426,31 @@ curl -X GET http://localhost:8080/api/clients/inactive
 #### Get Client by ID
 
 **Example: Get client-001**
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/client-001
 ```
 
 **Example: Get client-002**
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/client-002
 ```
 
 **Example: Get client-003**
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/client-003
 ```
 
 **Example: Get client-004 (inactive)**
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/client-004
 ```
 
 **Example: Get client-005**
+
 ```bash
 curl -X GET http://localhost:8080/api/clients/client-005
 ```
@@ -495,12 +468,14 @@ curl -s -X GET http://localhost:8080/api/clients | jq '.'
 #### Local Testing
 
 Run the test script:
+
 ```bash
 chmod +x test-api.sh
 ./test-api.sh
 ```
 
 Or set a custom base URL:
+
 ```bash
 BASE_URL=http://localhost:8080 ./test-api.sh
 ```
@@ -521,6 +496,7 @@ curl -X GET $API_URL/api/clients/client-001
 ```
 
 Or use the test script with API Gateway URL:
+
 ```bash
 ./test-api.sh https://your-api-id.execute-api.us-east-1.amazonaws.com/prod
 ```
@@ -528,32 +504,25 @@ Or use the test script with API Gateway URL:
 ### Testing with Postman
 
 1. **Start the server:**
-   ```bash
+  ```bash
    make run-server
-   ```
-
+  ```
 2. **Import these requests into Postman:**
-
-   - **Health Check:**
-     - Method: `GET`
-     - URL: `http://localhost:8080/health`
-
-   - **Get All Clients:**
-     - Method: `GET`
-     - URL: `http://localhost:8080/api/clients`
-
-   - **Get Client by ID:**
-     - Method: `GET`
-     - URL: `http://localhost:8080/api/clients/client-001`
-
-   - **Get Active Clients:**
-     - Method: `GET`
-     - URL: `http://localhost:8080/api/clients/active`
-
-   - **Get Inactive Clients:**
-     - Method: `GET`
-     - URL: `http://localhost:8080/api/clients/inactive`
-
+  - **Health Check:**
+    - Method: `GET`
+    - URL: `http://localhost:8080/health`
+  - **Get All Clients:**
+    - Method: `GET`
+    - URL: `http://localhost:8080/api/clients`
+  - **Get Client by ID:**
+    - Method: `GET`
+    - URL: `http://localhost:8080/api/clients/client-001`
+  - **Get Active Clients:**
+    - Method: `GET`
+    - URL: `http://localhost:8080/api/clients/active`
+  - **Get Inactive Clients:**
+    - Method: `GET`
+    - URL: `http://localhost:8080/api/clients/inactive`
 3. **All responses are in JSON format** and can be viewed in Postman's response body.
 
 ## API Gateway
@@ -611,6 +580,7 @@ The CI workflow (`.github/workflows/ci.yml`) runs on every push and pull request
 ### Continuous Deployment (CD)
 
 The deployment workflow (`.github/workflows/deploy.yml`) runs on:
+
 - Pushes to `main` branch
 - Version tags (e.g., `v1.0.0`)
 - Manual workflow dispatch
@@ -621,11 +591,10 @@ To enable deployment, configure the following GitHub Secrets in your repository:
 
 1. Go to **Settings** → **Secrets and variables** → **Actions**
 2. Add the following secrets:
-
-   - `AWS_ACCESS_KEY_ID`: AWS access key for deployment
-   - `AWS_SECRET_ACCESS_KEY`: AWS secret key for deployment
-   - `AWS_REGION`: AWS region (e.g., `us-east-1`)
-   - `BACKEND_URL`: Backend server URL for API Gateway (optional)
+  - `AWS_ACCESS_KEY_ID`: AWS access key for deployment
+  - `AWS_SECRET_ACCESS_KEY`: AWS secret key for deployment
+  - `AWS_REGION`: AWS region (e.g., `us-east-1`)
+  - `BACKEND_URL`: Backend server URL for API Gateway (optional)
 
 #### Optional Secrets (for specific deployment targets)
 
@@ -638,27 +607,26 @@ To enable deployment, configure the following GitHub Secrets in your repository:
 #### Deployment Process
 
 1. **Automatic Deployment:**
-   - Push to `main` branch triggers deployment
-   - Version tags (e.g., `v1.0.0`) trigger deployment
-   - Manual trigger via GitHub Actions UI
-
+  - Push to `main` branch triggers deployment
+  - Version tags (e.g., `v1.0.0`) trigger deployment
+  - Manual trigger via GitHub Actions UI
 2. **Deployment Steps:**
-   - Runs tests
-   - Builds production binary
-   - Configures AWS credentials
-   - Creates/updates DynamoDB tables
-   - Deploys API Gateway (if BACKEND_URL is set)
-   - Uploads deployment artifacts
-
+  - Runs tests
+  - Builds production binary
+  - Configures AWS credentials
+  - Creates/updates DynamoDB tables
+  - Deploys API Gateway (if BACKEND_URL is set)
+  - Uploads deployment artifacts
 3. **Post-Deployment:**
-   - Binary available in GitHub Actions artifacts
-   - API Gateway URL displayed in deployment summary
-   - Configure your infrastructure to use the binary
-   - Set up service management (systemd, supervisor, etc.)
+  - Binary available in GitHub Actions artifacts
+  - API Gateway URL displayed in deployment summary
+  - Configure your infrastructure to use the binary
+  - Set up service management (systemd, supervisor, etc.)
 
 #### Optional Deployment Targets
 
 The deployment workflow includes placeholders for:
+
 - **EC2 Deployment**: Uncomment and configure EC2 deployment steps
 - **Docker/ECS Deployment**: Uncomment and configure Docker registry
 - **Lambda Deployment**: Uncomment and configure Lambda deployment
@@ -666,6 +634,7 @@ The deployment workflow includes placeholders for:
 #### Production Environment
 
 Create a GitHub environment called `production`:
+
 1. Go to **Settings** → **Environments**
 2. Create a new environment named `production`
 3. Add environment-specific secrets if needed
@@ -681,44 +650,29 @@ This is the recommended approach for production deployments. The infrastructure 
 #### Quick Start
 
 1. **Add GitHub Secrets:**
+  Go to: **GitHub Repo Settings** → **Secrets and variables** → **Actions**
 
-   Go to: **GitHub Repo Settings** → **Secrets and variables** → **Actions**
-
-   | Secret | Value |
-   |--------|-------|
-   | `AWS_ACCESS_KEY_ID` | Your AWS access key ID |
-   | `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key |
-   | `AWS_REGION` | `us-east-1` (or your preferred region) |
-   | `EC2_INSTANCE_TYPE` | `t3.micro` (free tier) or `t3.small` |
-   | `DEPLOY_EC2` | `true` |
+  | Secret                  | Value                                  |
+  | ----------------------- | -------------------------------------- |
+  | `AWS_ACCESS_KEY_ID`     | Your AWS access key ID                 |
+  | `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key             |
+  | `AWS_REGION`            | `us-east-1` (or your preferred region) |
+  | `EC2_INSTANCE_TYPE`     | `t3.micro` (free tier) or `t3.small`   |
+  | `DEPLOY_EC2`            | `true`                                 |
 
 2. **Deploy:**
-
-   Create and push a version tag:
-   ```bash
-   git tag v0.2.8
-   git push origin v0.2.8
-   ```
-
+  Create and push a version tag:
    Or trigger manually in GitHub Actions.
-
 3. **Get Your Backend URL:**
-
-   After deployment completes, check the GitHub Actions job summary for:
-   ```
-   Load Balancer DNS: johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com
-   Backend URL: http://johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com
-   ```
-
+  After deployment completes, check the GitHub Actions job summary for:
 4. **Test It:**
-
-   ```bash
+  ```bash
    # Health check
    curl http://johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com/health
 
    # Get clients
    curl http://johns-ai-backend-ec2-alb-123456.us-east-1.elb.amazonaws.com/api/clients
-   ```
+  ```
 
 #### Infrastructure Created
 
@@ -758,12 +712,14 @@ Once the EC2 stack is deployed:
 #### Debugging EC2 Deployment
 
 **Check instance status:**
+
 ```bash
 aws ec2 describe-instances --region us-east-1 \
   --query 'Reservations[].Instances[?Tags[?Key==`Name`&&Value==`*backend*`]]'
 ```
 
 **Access instance via AWS Systems Manager:**
+
 ```bash
 # List sessions
 aws ssm describe-sessions --region us-east-1
@@ -773,11 +729,13 @@ aws ssm start-session --target i-xxxxx --region us-east-1
 ```
 
 **View backend logs:**
+
 ```bash
 sudo journalctl -u john-ai-backend.service -f
 ```
 
 **Check ALB targets:**
+
 ```bash
 aws elbv2 describe-target-health \
   --target-group-arn $(aws elbv2 describe-target-groups \
@@ -786,6 +744,7 @@ aws elbv2 describe-target-health \
 ```
 
 **Instance Type Options:**
+
 - `t3.micro` - Free tier (1GB RAM)
 - `t3.small` - $18/month (2GB RAM)
 - `t3.medium` - $35/month (4GB RAM)
@@ -795,6 +754,7 @@ Change by updating GitHub secret `EC2_INSTANCE_TYPE`.
 **Cleanup:**
 
 To delete all resources:
+
 ```bash
 aws cloudformation delete-stack \
   --stack-name johns-ai-backend-ec2 --region us-east-1
@@ -803,30 +763,27 @@ aws cloudformation delete-stack \
 ### Manual AWS Deployment
 
 1. **Set up AWS credentials:**
-   ```bash
+  ```bash
    export AWS_ACCESS_KEY_ID=your-access-key
    export AWS_SECRET_ACCESS_KEY=your-secret-key
    export AWS_REGION=us-east-1
-   ```
-
+  ```
 2. **Create DynamoDB tables:**
-   ```bash
+  ```bash
    # Remove or unset DYNAMODB_ENDPOINT to use AWS
    unset DYNAMODB_ENDPOINT
    make setup-db
-   ```
-
+  ```
 3. **Build and deploy the server:**
-   ```bash
+  ```bash
    make build-server
    # Deploy bin/server to your infrastructure
-   ```
-
+  ```
 4. **Deploy API Gateway:**
-   ```bash
+  ```bash
    export BACKEND_URL="http://your-backend-server:8080"
    make deploy-api-gateway
-   ```
+  ```
 
 ### Deployment Targets
 
@@ -856,17 +813,20 @@ aws cloudformation delete-stack \
 ### Local Development Issues
 
 **DynamoDB Local not starting:**
+
 ```bash
 make docker-down
 make docker-up
 ```
 
 **Connection errors:**
+
 - Verify `.env` file exists and has correct `DYNAMODB_ENDPOINT`
 - Check Docker container is running: `make docker-status`
 - View logs: `make docker-logs`
 
 **Table creation fails:**
+
 - Ensure DynamoDB Local is running
 - Check environment variables are loaded
 - Verify AWS_REGION is set
@@ -874,21 +834,25 @@ make docker-up
 ### Production Deployment Issues
 
 **AWS credentials not working:**
+
 - Verify secrets are set in GitHub
 - Check IAM permissions
 - Ensure AWS_REGION matches your resources
 
 **DynamoDB connection fails:**
+
 - Remove or unset `DYNAMODB_ENDPOINT` for AWS
 - Verify IAM permissions for DynamoDB
 - Check AWS region configuration
 
 **Build failures:**
+
 - Check Go version (requires 1.21+)
 - Verify all dependencies are in `go.mod`
 - Review GitHub Actions logs
 
 **API Gateway deployment fails:**
+
 - Verify `BACKEND_URL` is accessible
 - Check backend server is running
 - Ensure IAM permissions for API Gateway
@@ -915,12 +879,14 @@ The API uses JWT-based authentication for all client endpoints. See the followin
 ### Quick Start
 
 For local development:
+
 ```bash
 export JWT_SECRET="dev-secret-key-change-in-production"
-make run-server
+make HTTP_PORT=8081 make run-server    
 ```
 
 For production deployment:
+
 ```bash
 ./scripts/setup-jwt-secret.sh
 ```
@@ -932,3 +898,4 @@ For production deployment:
 - [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Go Environment Variables](https://golang.org/pkg/os/#Getenv)
+

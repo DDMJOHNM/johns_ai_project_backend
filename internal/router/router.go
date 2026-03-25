@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -124,6 +125,35 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		}
 	}))
 
+	mux.HandleFunc("/api/clients/by-email", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			clientHandler.GetClientByEmail(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+
+	// PUT/PATCH /api/clients/update/{id} — alternate URL for client updates (must register before /api/clients/)
+	const clientsUpdatePrefix = "/api/clients/update/"
+	mux.HandleFunc(clientsUpdatePrefix, authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if !strings.HasPrefix(path, clientsUpdatePrefix) {
+			http.NotFound(w, r)
+			return
+		}
+		id := strings.TrimSuffix(path[len(clientsUpdatePrefix):], "/")
+		if id == "" || handler.ReservedClientPathID(id) {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodPut && r.Method != http.MethodPatch {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
+		clientHandler.UpdateClient(w, r)
+	}))
+
 	// Base route for GET /api/clients (protected)
 	mux.HandleFunc("/api/clients", authHandler.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/api/clients" {
@@ -141,30 +171,59 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		log.Printf("[ROUTER] Catch-all /api/clients/ handler - Method: %s, Path: %s", method, path)
 		fmt.Fprintf(os.Stderr, "[ROUTER] Catch-all /api/clients/ handler - Method: %s, Path: %s\n", method, path)
 
-		// Check if this is one of our specific routes (shouldn't happen, but safety check)
-		if path == "/api/clients/active" || path == "/api/clients/inactive" || path == "/api/clients/add" {
-			log.Printf("[ROUTER] Specific route %s matched in catch-all - returning 404", path)
-			fmt.Fprintf(os.Stderr, "[ROUTER] Specific route %s matched in catch-all - returning 404\n", path)
+		if path == "/api/clients" || path == "/api/clients/" {
 			http.NotFound(w, r)
 			return
 		}
 
-		// Only handle GET requests for client by ID
-		if method == http.MethodGet {
-			if path == "/api/clients" || path == "/api/clients/" {
-				http.NotFound(w, r)
-				return
+		// Remove /api/clients/ prefix to get the segment (may be a reserved route or a client id).
+		id := strings.TrimSuffix(path[len("/api/clients/"):], "/")
+		if id == "" {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Depending on Go version / ServeMux, the subtree pattern /api/clients/ can also match
+		// paths that have dedicated handlers. Delegate instead of 404 or treating as a client id.
+		switch id {
+		case "active":
+			if method == http.MethodGet {
+				clientHandler.GetActiveClients(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
-			// Remove /api/clients/ prefix to get the ID
-			id := path[len("/api/clients/"):]
-			if id == "" {
-				http.NotFound(w, r)
-				return
+			return
+		case "inactive":
+			if method == http.MethodGet {
+				clientHandler.GetInactiveClients(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
-			// Create a request with PathValue for the handler
+			return
+		case "add":
+			if method == http.MethodPost {
+				clientHandler.CreateClient(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		case "by-email":
+			if method == http.MethodGet {
+				clientHandler.GetClientByEmail(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		switch method {
+		case http.MethodGet:
 			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
 			clientHandler.GetClientByID(w, r)
-		} else {
+		case http.MethodPut, http.MethodPatch:
+			r = r.WithContext(context.WithValue(r.Context(), handler.ClientIDKey, id))
+			clientHandler.UpdateClient(w, r)
+		default:
 			http.NotFound(w, r)
 		}
 	}))
@@ -246,6 +305,9 @@ func (r *Router) Start() error {
 	log.Printf("    GET  /api/auth/me - Get current user info")
 	log.Printf("    GET  /api/clients - Get all clients")
 	log.Printf("    GET  /api/clients/{id} - Get client by ID")
+	log.Printf("    GET  /api/clients/by-email?email=... - Get client by email")
+	log.Printf("    PUT/PATCH /api/clients/{id} - Update a client")
+	log.Printf("    PUT/PATCH /api/clients/update/{id} - Update a client (alternate path)")
 	log.Printf("    GET  /api/clients/active - Get active clients")
 	log.Printf("    GET  /api/clients/inactive - Get inactive clients")
 	log.Printf("    POST /api/clients/add - Create a new client")
