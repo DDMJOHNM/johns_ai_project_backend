@@ -60,6 +60,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.authService.Register(r.Context(), req.Username, req.Email, req.Password, req.FirstName, req.LastName)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		RespondJSON(w, http.StatusBadRequest, ErrorResponse{
 			Error:   "Registration failed",
 			Message: err.Error(),
@@ -94,6 +97,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	token, user, err := h.authService.Login(r.Context(), req.Login, req.Password)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		statusCode := http.StatusUnauthorized
 		if errors.Is(err, service.ErrAuthLoginMissingFields) {
 			statusCode = http.StatusBadRequest
@@ -123,6 +129,9 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.authService.GetUserByID(r.Context(), userID)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		RespondJSON(w, http.StatusNotFound, ErrorResponse{
 			Error:   "User not found",
 			Message: err.Error(),

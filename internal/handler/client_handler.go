@@ -45,6 +45,9 @@ func (h *ClientHandler) GetClientList(w http.ResponseWriter, r *http.Request) {
 
 	clients, err := h.service.GetClientList(r.Context())
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -75,6 +78,9 @@ func (h *ClientHandler) GetClientByID(w http.ResponseWriter, r *http.Request) {
 
 	client, err := h.service.GetClientByID(r.Context(), id)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -91,6 +97,9 @@ func (h *ClientHandler) GetClientByEmail(w http.ResponseWriter, r *http.Request)
 	email := strings.TrimSpace(r.URL.Query().Get("email"))
 	client, err := h.service.GetClientByEmail(r.Context(), email)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		switch err {
 		case service.ErrMissingEmail, service.ErrInvalidEmail:
 			RespondJSON(w, http.StatusBadRequest, ErrorResponse{
@@ -119,6 +128,9 @@ func (h *ClientHandler) GetActiveClients(w http.ResponseWriter, r *http.Request)
 
 	clients, err := h.service.GetActiveClients(r.Context())
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -134,6 +146,9 @@ func (h *ClientHandler) GetInactiveClients(w http.ResponseWriter, r *http.Reques
 
 	clients, err := h.service.GetInactiveClients(r.Context())
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -234,6 +249,9 @@ func (h *ClientHandler) CreateClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.CreateClient(r.Context(), client); err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		statusCode := http.StatusInternalServerError
 		if err == service.ErrMissingRequiredFields || err == service.ErrInvalidEmail {
 			statusCode = http.StatusBadRequest
@@ -485,6 +503,9 @@ func (h *ClientHandler) UpdateClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateClient(r.Context(), id, in); err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		statusCode := http.StatusInternalServerError
 		switch err {
 		case service.ErrMissingClientID, service.ErrMissingRequiredFields, service.ErrInvalidEmail, service.ErrNoFieldsToUpdate:
@@ -502,6 +523,9 @@ func (h *ClientHandler) UpdateClient(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.service.GetClientByID(r.Context(), id)
 	if err != nil {
+		if RespondContextError(w, err) {
+			return
+		}
 		RespondJSON(w, http.StatusInternalServerError, ErrorResponse{
 			Error:   "Failed to load updated client",
 			Message: err.Error(),

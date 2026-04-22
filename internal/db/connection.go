@@ -3,12 +3,23 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+)
+
+// HTTP client pool tuning for the AWS SDK DynamoDB endpoint.
+const (
+	dynamoHTTPMaxIdleConns        = 100
+	dynamoHTTPMaxIdleConnsPerHost = 100
+	dynamoHTTPIdleConnTimeout     = 90 * time.Second
+	// Hard cap per DynamoDB HTTP round-trip (in addition to context deadlines from handlers).
+	dynamoHTTPClientTimeout = 30 * time.Second
 )
 
 // Client wraps the DynamoDB client and provides connection management
@@ -54,6 +65,18 @@ func NewClient(ctx context.Context) (*Client, error) {
 		},
 	)))
 
+	// Tune connection pool for many concurrent requests to the same DynamoDB endpoint.
+	// Clone DefaultTransport so TLS and other defaults stay aligned with the standard library.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = dynamoHTTPMaxIdleConns
+	transport.MaxIdleConnsPerHost = dynamoHTTPMaxIdleConnsPerHost
+	transport.IdleConnTimeout = dynamoHTTPIdleConnTimeout
+
+	cfgOpts = append(cfgOpts, config.WithHTTPClient(&http.Client{
+		Timeout:   dynamoHTTPClientTimeout,
+		Transport: transport,
+	}))
+
 	// Load AWS config
 	cfg, err := config.LoadDefaultConfig(ctx, cfgOpts...)
 	if err != nil {
@@ -85,4 +108,3 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
-

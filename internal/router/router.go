@@ -18,6 +18,15 @@ import (
 	"github.com/jmason/john_ai_project/internal/service"
 )
 
+// Request and server timeouts: handler work is bounded by requestHandlerTimeout on r.Context();
+// http.Server limits must allow the handler to finish and write the response.
+const (
+	requestHandlerTimeout = 50 * time.Second
+	httpReadTimeout       = 30 * time.Second
+	httpWriteTimeout      = 55 * time.Second
+	httpIdleTimeout       = 120 * time.Second
+)
+
 // Router handles HTTP routing
 type Router struct {
 	mux           *http.ServeMux
@@ -265,6 +274,12 @@ func NewRouter(ctx context.Context) (*Router, error) {
 		// Wrap response writer to capture status code
 		wrapped := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 
+		// Bound handler + repository work so DynamoDB and other I/O respect cancellation when the
+		// client goes away or the deadline is exceeded (child of r.Context() from the server).
+		reqCtx, cancel := context.WithTimeout(r.Context(), requestHandlerTimeout)
+		defer cancel()
+		r = r.WithContext(reqCtx)
+
 		mux.ServeHTTP(wrapped, r)
 
 		// Log the request
@@ -281,9 +296,9 @@ func NewRouter(ctx context.Context) (*Router, error) {
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      logAndStripHandler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  httpReadTimeout,
+		WriteTimeout: httpWriteTimeout,
+		IdleTimeout:  httpIdleTimeout,
 	}
 
 	return &Router{
