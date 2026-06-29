@@ -1,5 +1,6 @@
 #!/bin/bash
-yum update -y
+dnf update -y
+dnf install -y wget tar
 
 # Install Go
 cd /tmp
@@ -42,7 +43,7 @@ systemctl enable john-ai-backend.service
 
 # Install and configure CloudWatch agent for log forwarding
 wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
-rpm -U ./amazon-cloudwatch-agent.rpm
+dnf install -y ./amazon-cloudwatch-agent.rpm
 
 # Configure rsyslog to forward application logs to a file
 mkdir -p /var/log/john-ai-backend
