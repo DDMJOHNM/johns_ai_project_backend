@@ -1,6 +1,6 @@
-# Data source for latest Amazon Linux 2 AMI
-data "aws_ssm_parameter" "amazon_linux_2_ami" {
-  name = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+# Data source for latest Amazon Linux 2023 AMI
+data "aws_ssm_parameter" "amazon_linux_2023_ami" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
 # Security Group for EC2 backend instance
@@ -134,7 +134,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 
 # EC2 Instance
 resource "aws_instance" "backend" {
-  ami                    = data.aws_ssm_parameter.amazon_linux_2_ami.value
+  ami                    = data.aws_ssm_parameter.amazon_linux_2023_ami.value
   instance_type          = var.instance_type
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
